@@ -95,7 +95,7 @@ Product strategy baseline: [docs/STRATEGY.md](docs/STRATEGY.md), [docs/RELEASE_P
 | L-408 | done | Local image provider spike (Ollama FLUX.2 Klein / Z-Image via OpenAI-compatible `/images/generations`; `CUTROOM_IMAGE_PROVIDER`) |
 | L-409 | done | OS keychain secrets migration (from app-data `.env`; macOS `security`, models stay in `.env`) |
 | L-410 | todo | macOS notarization complete + Gatekeeper green (needs Apple notary creds) |
-| L-411 | todo | Windows signed installer smoke |
+| L-411 | done | Windows binary smoke — `cutroom-windows-x86_64.exe` cross-built via cargo-xwin; on GitHub Release v2.0.0 (unsigned; NSIS/MSI need Windows host/CI) |
 | L-412 | done | Linux AppImage/deb smoke — `cutroom_2.0.0_arm64.deb` + `cutroom-linux-aarch64` on GitHub Release v2.0.0 |
 | L-413 | todo | Caption-grounded Insights with cheap/local models (after L-608 YouTube-captions path) |
 | L-414 | todo | Comment mine follow-up if L-609 needs local/cheap-model fallback |
