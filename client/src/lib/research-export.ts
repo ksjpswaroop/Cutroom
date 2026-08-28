@@ -21,6 +21,7 @@ export interface ResearchReportData {
     uploadDate: string;
     duration: string;
     sortBy: string;
+    channelId?: string;
   };
   analytics: ResearchAnalytics;
   videos: Video[];

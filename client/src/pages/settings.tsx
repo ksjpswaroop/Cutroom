@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { checkForDesktopUpdate, installDesktopUpdate } from "@/lib/desktop-updater";
 
 interface ModelOption {
   id: string;
@@ -175,6 +176,15 @@ export default function SettingsPage() {
   const [brandFont, setBrandFont] = useState("");
   const [brandThumbNotes, setBrandThumbNotes] = useState("");
   const [brandForbidden, setBrandForbidden] = useState("");
+  const [studioStatus, setStudioStatus] = useState<{
+    configured: boolean;
+    connected: boolean;
+    label: string;
+    evidenceClass: string;
+    message: string;
+  } | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState<string | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const youtubeKeyRef = useRef<HTMLInputElement>(null);
@@ -208,6 +218,12 @@ export default function SettingsPage() {
           setBrandFont(nextStatus.brandKit.fontPreference || "");
           setBrandThumbNotes(nextStatus.brandKit.thumbnailStyleNotes || "");
           setBrandForbidden((nextStatus.brandKit.forbiddenClaims || []).join("\n"));
+        }
+        try {
+          const studioRes = await fetch("/api/studio/status", { cache: "no-store" });
+          if (studioRes.ok) setStudioStatus(await studioRes.json());
+        } catch {
+          /* optional mirror */
         }
       } catch (error: any) {
         setLoadError(error?.message || "Unable to load settings.");
@@ -534,6 +550,89 @@ export default function SettingsPage() {
                 : "Off"}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>YouTube Studio mirror</CardTitle>
+          <CardDescription>
+            Optional owner-only metrics. Never mixed into public Research evidence. Labeled Observed-for-owner /
+            requires_studio when enabled.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {studioStatus ? (
+            <>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">{studioStatus.configured ? "OAuth client present" : "Not configured"}</Badge>
+                <Badge variant="outline">{studioStatus.connected ? "Connected" : "Disconnected"}</Badge>
+                <Badge variant="secondary">{studioStatus.label}</Badge>
+                <Badge variant="secondary">{studioStatus.evidenceClass}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">{studioStatus.message}</p>
+              <p className="text-xs text-muted-foreground">
+                Set YOUTUBE_OAUTH_CLIENT_ID, YOUTUBE_OAUTH_CLIENT_SECRET, and YOUTUBE_OAUTH_REFRESH_TOKEN in the
+                local environment to connect. Core Cutroom works without this.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Studio status unavailable.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Desktop updates</CardTitle>
+          <CardDescription>
+            Signed updates from GitHub Releases (latest.json). Web builds do not auto-update.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!isDesktop || updateBusy}
+              onClick={() => {
+                void (async () => {
+                  setUpdateBusy(true);
+                  setUpdateMessage(null);
+                  const result = await checkForDesktopUpdate();
+                  if (result.error) setUpdateMessage(result.error);
+                  else if (result.available) setUpdateMessage(`Update ${result.version} available.${result.notes ? ` ${result.notes}` : ""}`);
+                  else setUpdateMessage("You are on the latest desktop build.");
+                  setUpdateBusy(false);
+                })();
+              }}
+              data-testid="button-check-updates"
+            >
+              {updateBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Check for updates
+            </Button>
+            <Button
+              type="button"
+              disabled={!isDesktop || updateBusy}
+              onClick={() => {
+                void (async () => {
+                  setUpdateBusy(true);
+                  const result = await installDesktopUpdate();
+                  if (result.error) {
+                    setUpdateMessage(result.error);
+                    setUpdateBusy(false);
+                  }
+                })();
+              }}
+              data-testid="button-install-update"
+            >
+              Download & install
+            </Button>
+          </div>
+          {updateMessage && <p className="text-sm text-muted-foreground">{updateMessage}</p>}
+          {!isDesktop && (
+            <p className="text-xs text-muted-foreground">Open the Cutroom desktop app to check for updates.</p>
+          )}
         </CardContent>
       </Card>
 

@@ -74,10 +74,10 @@ Update this file when work starts or finishes. See [ROADMAP.md](ROADMAP.md) for 
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-311 | todo | Competitor/series workspace |
-| L-312 | todo | Content calendar / batch pipeline |
+| L-311 | done | Competitor/series workspace — channel-first Research (`channelId` on search; L-618) |
+| L-312 | done | Content calendar / batch pipeline (`/calendar` + local JSON store) |
 | L-313 | done | Shorts/clip briefs from long script (inferred planning cards; L-505) |
-| L-314 | todo | Optional YouTube OAuth Studio mirror |
+| L-314 | done | Optional YouTube OAuth Studio mirror (status + labeled stubs; metrics null until refresh token) |
 
 ## Phase 4 — Strategy follow-through (v1.1 → v1.2)
 
@@ -107,11 +107,11 @@ Product strategy baseline: [docs/STRATEGY.md](docs/STRATEGY.md), [docs/RELEASE_P
 | --- | --- | --- |
 | L-501 | done | Brand kit + style memory (L-308) |
 | L-502 | done | Teleprompter desktop mode (L-309) |
-| L-503 | todo | Competitor/series workspace (L-311) |
-| L-504 | todo | Content calendar / batch (L-312) |
+| L-503 | done | Competitor/series workspace (L-311) — channel-first Research |
+| L-504 | done | Content calendar / batch (L-312) |
 | L-505 | done | Shorts/clip briefs (L-313) — inferred section→clip cards; no renderer |
-| L-506 | todo | Optional Studio OAuth mirror with strict labeling (L-314) |
-| L-507 | todo | Auto-updater endpoint live |
+| L-506 | done | Optional Studio OAuth mirror with strict labeling (L-314) |
+| L-507 | done | Auto-updater endpoint live (GitHub `latest.json` + Settings check) |
 | L-508 | todo | Optional Hermes *companion* experiment (cron digest only; off by default) |
 
 ## Phase 6 — Cutroom v0.2
@@ -179,7 +179,7 @@ Keep **Evidence ledger** as the Insights feature name. Do not add a fifth resear
 | --- | --- | --- |
 | L-616 | todo | Competitor thumbnail inspection: Gemini vision on top N snapshot thumbs; claims labeled inferred |
 | L-617 | todo | Script evidence overlay: highlight on-promise / tangent / unsupported sentences (same graph as L-604) |
-| L-618 | todo | Channel-first Research: `search.list` with `channelId` (thin slice of L-311) |
+| L-618 | done | Channel-first Research: `search.list` with `channelId` (thin slice of L-311) |
 | L-619 | todo | Export buttons: show Insights… / Ideas… while pipeline runs; stop saying “PDF/XLS/CSV waiting” |
 | L-620 | todo | Launch-video Remotion **side project** from `docs/launch-video/` (not an in-app renderer) |
 

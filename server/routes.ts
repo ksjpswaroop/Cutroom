@@ -42,6 +42,15 @@ import {
 import { createReadStream } from "node:fs";
 import { access as fsAccess, constants as fsConstants } from "node:fs/promises";
 import { clipBriefsFromScript } from "@shared/clip-briefs";
+import {
+  calendarItemCreateSchema,
+  calendarItemUpdateSchema,
+  createCalendarItem,
+  deleteCalendarItem,
+  listCalendarItems,
+  updateCalendarItem,
+} from "./content-calendar";
+import { getStudioMirrorStatus, studioMetricsPlaceholder } from "./studio-oauth";
 import { normalizeProviderError, providerErrorPayload } from "./provider-errors";
 import { thumbnailGenerationRequestSchema, thumbnailSuggestionsRequestSchema } from "./thumbnail-contract";
 import {
@@ -197,6 +206,77 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/calendar", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Calendar is available only from this machine." });
+    }
+    try {
+      return res.json({ items: await listCalendarItems() });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to load calendar." });
+    }
+  });
+
+  app.post("/api/calendar", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Calendar is available only from this machine." });
+    }
+    try {
+      const input = calendarItemCreateSchema.parse(req.body);
+      const item = await createCalendarItem(input);
+      return res.status(201).json({ item });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Unable to create calendar item." });
+    }
+  });
+
+  app.put("/api/calendar/:id", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Calendar is available only from this machine." });
+    }
+    try {
+      const input = calendarItemUpdateSchema.parse({ ...req.body, id: req.params.id });
+      const item = await updateCalendarItem(input);
+      return res.json({ item });
+    } catch (error: any) {
+      const status = typeof error?.status === "number" ? error.status : 400;
+      return res.status(status).json({ error: error?.message || "Unable to update calendar item." });
+    }
+  });
+
+  app.delete("/api/calendar/:id", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Calendar is available only from this machine." });
+    }
+    try {
+      return res.json(await deleteCalendarItem(req.params.id));
+    } catch (error: any) {
+      const status = typeof error?.status === "number" ? error.status : 400;
+      return res.status(status).json({ error: error?.message || "Unable to delete calendar item." });
+    }
+  });
+
+  app.get("/api/studio/status", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Studio mirror status is available only from this machine." });
+    }
+    return res.json(getStudioMirrorStatus());
+  });
+
+  app.get("/api/studio/metrics", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Studio metrics are available only from this machine." });
+    }
+    const videoId = typeof req.query.videoId === "string" ? req.query.videoId : undefined;
+    return res.json(studioMetricsPlaceholder(videoId));
+  });
+
   app.get("/api/preview/status", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     if (!isLocalSettingsRequest(req)) {
@@ -305,7 +385,7 @@ export async function registerRoutes(
 
   app.get("/api/youtube/search", rateLimit, async (req, res) => {
     try {
-      const { query, uploadDate, duration, sortBy, maxResults } = req.query;
+      const { query, uploadDate, duration, sortBy, maxResults, channelId } = req.query;
 
       if (!query || typeof query !== "string") {
         return res.status(400).json({ error: "Query parameter is required" });
@@ -317,6 +397,9 @@ export async function registerRoutes(
         duration: duration || "any",
         sortBy: sortBy || "relevance",
         maxResults: maxResults ? parseInt(maxResults as string, 10) : 25,
+        ...(typeof channelId === "string" && channelId.trim()
+          ? { channelId: channelId.trim() }
+          : {}),
       });
 
       const result = await searchVideos(filters);

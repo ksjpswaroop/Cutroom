@@ -538,10 +538,21 @@ export function createSnapshotId(filters: SearchFilters, orderedVideoIds: string
     duration: filters.duration,
     sortBy: filters.sortBy,
     maxResults: filters.maxResults,
+    channelId: filters.channelId?.trim() || undefined,
     orderedVideoIds,
     retrievedAt,
   });
   return `yt_${createHash("sha256").update(identity).digest("hex").slice(0, 32)}`;
+}
+
+function provenanceFilters(filters: SearchFilters) {
+  return {
+    uploadDate: filters.uploadDate,
+    duration: filters.duration,
+    sortBy: filters.sortBy,
+    maxResults: filters.maxResults,
+    ...(filters.channelId?.trim() ? { channelId: filters.channelId.trim() } : {}),
+  };
 }
 
 export async function searchVideos(filters: SearchFilters): Promise<SearchResponse> {
@@ -564,6 +575,9 @@ export async function searchVideos(filters: SearchFilters): Promise<SearchRespon
   const videoDuration = getVideoDuration(filters.duration);
   if (videoDuration) {
     params.set("videoDuration", videoDuration);
+  }
+  if (filters.channelId?.trim()) {
+    params.set("channelId", filters.channelId.trim());
   }
 
   const searchUrl = `${BASE_URL}/search?${params}`;
@@ -594,12 +608,7 @@ export async function searchVideos(filters: SearchFilters): Promise<SearchRespon
       provenance: {
         provider: "youtube-data-api-v3",
         query: filters.query.trim(),
-        filters: {
-          uploadDate: filters.uploadDate,
-          duration: filters.duration,
-          sortBy: filters.sortBy,
-          maxResults: filters.maxResults,
-        },
+        filters: provenanceFilters(filters),
         orderedVideoIds,
       },
       enrichment: {
@@ -633,12 +642,7 @@ export async function searchVideos(filters: SearchFilters): Promise<SearchRespon
       provenance: {
         provider: "youtube-data-api-v3",
         query: filters.query.trim(),
-        filters: {
-          uploadDate: filters.uploadDate,
-          duration: filters.duration,
-          sortBy: filters.sortBy,
-          maxResults: filters.maxResults,
-        },
+        filters: provenanceFilters(filters),
         orderedVideoIds,
       },
       enrichment: {
@@ -789,12 +793,7 @@ export async function searchVideos(filters: SearchFilters): Promise<SearchRespon
     provenance: {
       provider: "youtube-data-api-v3",
       query: filters.query.trim(),
-      filters: {
-        uploadDate: filters.uploadDate,
-        duration: filters.duration,
-        sortBy: filters.sortBy,
-        maxResults: filters.maxResults,
-      },
+      filters: provenanceFilters(filters),
       orderedVideoIds,
     },
     enrichment: {

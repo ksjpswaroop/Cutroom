@@ -60,6 +60,7 @@ type AppliedFilters = {
   uploadDate: UploadDateFilter;
   duration: DurationFilter;
   sortBy: SortBy;
+  channelId: string;
 };
 
 type ApiWarning = SearchResponse["warnings"][number];
@@ -274,10 +275,12 @@ export default function ResearchDashboard() {
   const [uploadDate, setUploadDate] = useState<UploadDateFilter>(UploadDateFilter.ANY);
   const [duration, setDuration] = useState<DurationFilter>(DurationFilter.ANY);
   const [sortBy, setSortBy] = useState<SortBy>(SortBy.RELEVANCE);
+  const [channelId, setChannelId] = useState("");
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({
     uploadDate: UploadDateFilter.ANY,
     duration: DurationFilter.ANY,
     sortBy: SortBy.RELEVANCE,
+    channelId: "",
   });
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -335,10 +338,12 @@ export default function ResearchDashboard() {
       setUploadDate(cached.filters.uploadDate as UploadDateFilter);
       setDuration(cached.filters.duration as DurationFilter);
       setSortBy(cached.filters.sortBy as SortBy);
+      setChannelId((cached.filters as { channelId?: string }).channelId || "");
       setAppliedFilters({
         uploadDate: cached.filters.uploadDate as UploadDateFilter,
         duration: cached.filters.duration as DurationFilter,
         sortBy: cached.filters.sortBy as SortBy,
+        channelId: (cached.filters as { channelId?: string }).channelId || "",
       });
       if (cached.insights) {
         setInsights(cached.insights as ResearchInsights);
@@ -367,6 +372,9 @@ export default function ResearchDashboard() {
             duration: cached.filters.duration as DurationFilter,
             sortBy: cached.filters.sortBy as SortBy,
             maxResults: 50,
+            ...((cached.filters as { channelId?: string }).channelId
+              ? { channelId: (cached.filters as { channelId?: string }).channelId }
+              : {}),
           },
           orderedVideoIds: cached.videos.map((video) => video.id),
         },
@@ -412,10 +420,12 @@ export default function ResearchDashboard() {
     setUploadDate(UploadDateFilter.ANY);
     setDuration(DurationFilter.ANY);
     setSortBy(SortBy.RELEVANCE);
+    setChannelId("");
     setAppliedFilters({
       uploadDate: UploadDateFilter.ANY,
       duration: DurationFilter.ANY,
       sortBy: SortBy.RELEVANCE,
+      channelId: "",
     });
     setCachedData(null);
     setInsights(null);
@@ -461,6 +471,9 @@ export default function ResearchDashboard() {
       sortBy: appliedFilters.sortBy,
       maxResults: "50",
     });
+    if (appliedFilters.channelId.trim()) {
+      params.set("channelId", appliedFilters.channelId.trim());
+    }
     return `/api/youtube/search?${params}`;
   };
 
@@ -471,6 +484,7 @@ export default function ResearchDashboard() {
       appliedFilters.uploadDate,
       appliedFilters.duration,
       appliedFilters.sortBy,
+      appliedFilters.channelId,
     ],
     queryFn: async ({ signal }) => {
       let res: Response;
@@ -733,7 +747,8 @@ export default function ResearchDashboard() {
       const sameSearch = nextQuery === submittedQuery
         && uploadDate === appliedFilters.uploadDate
         && duration === appliedFilters.duration
-        && sortBy === appliedFilters.sortBy;
+        && sortBy === appliedFilters.sortBy
+        && channelId.trim() === appliedFilters.channelId.trim();
       insightAbortRef.current?.abort();
       ideaAbortRef.current?.abort();
       setCachedData(null);
@@ -755,12 +770,12 @@ export default function ResearchDashboard() {
       setDepthError(null);
       insightsFetchedRef.current = "";
       ideasFetchedRef.current = "";
-      setAppliedFilters({ uploadDate, duration, sortBy });
+      setAppliedFilters({ uploadDate, duration, sortBy, channelId });
       setSubmittedQuery(nextQuery);
       if (!sameSearch) bindResearchQuery(nextQuery);
       if (sameSearch) await refetch();
     }
-  }, [searchQuery, submittedQuery, uploadDate, duration, sortBy, appliedFilters, refetch, bindResearchQuery]);
+  }, [searchQuery, submittedQuery, uploadDate, duration, sortBy, channelId, appliedFilters, refetch, bindResearchQuery]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
@@ -935,6 +950,7 @@ export default function ResearchDashboard() {
         uploadDate: appliedFilters.uploadDate,
         duration: appliedFilters.duration,
         sortBy: appliedFilters.sortBy,
+        channelId: appliedFilters.channelId,
       },
       analytics,
       videos: sourceData.videos,
@@ -1005,6 +1021,7 @@ export default function ResearchDashboard() {
         uploadDate: appliedFilters.uploadDate,
         duration: appliedFilters.duration,
         sortBy: appliedFilters.sortBy,
+        channelId: appliedFilters.channelId,
       },
       timestamp: Date.now(),
       snapshotId: sourceData.snapshotId,
@@ -1168,9 +1185,11 @@ export default function ResearchDashboard() {
               uploadDate={uploadDate}
               duration={duration}
               sortBy={sortBy}
+              channelId={channelId}
               onUploadDateChange={setUploadDate}
               onDurationChange={setDuration}
               onSortByChange={setSortBy}
+              onChannelIdChange={setChannelId}
             />
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               {hasSearched && (

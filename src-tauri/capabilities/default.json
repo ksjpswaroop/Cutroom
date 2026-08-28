@@ -9,6 +9,7 @@
     "core:window:allow-set-always-on-top",
     "core:window:allow-is-fullscreen",
     "dialog:default",
-    "process:default"
+    "process:default",
+    "updater:default"
   ]
 }

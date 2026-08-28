@@ -10,7 +10,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/src-tauri/target/release/bundle/macos/Cutroom.app"
-DMG="$ROOT/src-tauri/target/release/bundle/dmg/Cutroom_0.1.0_aarch64.dmg"
+DMG="$ROOT/src-tauri/target/release/bundle/dmg/Cutroom_${CUTROOM_VERSION:-2.0.0}_aarch64.dmg"
 IDENTITY="${APPLE_SIGNING_IDENTITY:-Developer ID Application: SURYA JAGANNATHA PHANI,SWAROOP,MA KALLAKURI (97ZA7QV77G)}"
 TEAM_ID="${APPLE_TEAM_ID:-97ZA7QV77G}"
 PROFILE="${NOTARY_PROFILE:-}"

@@ -7,14 +7,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 interface SearchFiltersProps {
   uploadDate: UploadDateFilter;
   duration: DurationFilter;
   sortBy: SortBy;
+  channelId?: string;
   onUploadDateChange: (value: UploadDateFilter) => void;
   onDurationChange: (value: DurationFilter) => void;
   onSortByChange: (value: SortBy) => void;
+  onChannelIdChange?: (value: string) => void;
 }
 
 const uploadDateOptions = [
@@ -44,12 +47,26 @@ export function SearchFilters({
   uploadDate,
   duration,
   sortBy,
+  channelId = "",
   onUploadDateChange,
   onDurationChange,
   onSortByChange,
+  onChannelIdChange,
 }: SearchFiltersProps) {
   return (
     <div className="flex flex-wrap items-center gap-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="filter-channel-id" className="text-xs text-muted-foreground">Competitor channel ID</Label>
+        <Input
+          id="filter-channel-id"
+          value={channelId}
+          onChange={(event) => onChannelIdChange?.(event.target.value)}
+          placeholder="UCxxxxxxxx (optional)"
+          className="h-10 w-[200px] font-mono text-xs"
+          data-testid="input-channel-id"
+        />
+      </div>
+
       <div className="space-y-1.5">
         <Label htmlFor="filter-upload-date" className="text-xs text-muted-foreground">Upload date</Label>
         <Select value={uploadDate} onValueChange={onUploadDateChange}>

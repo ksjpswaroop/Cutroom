@@ -38,7 +38,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, FileText, Settings, Rocket, Check, ArrowRight, Image, History, Loader2, MoreHorizontal, Pencil, Trash2, Package, Clapperboard } from "lucide-react";
+import { Search, FileText, Settings, Rocket, Check, ArrowRight, Image, History, Loader2, MoreHorizontal, Pencil, Trash2, Package, Clapperboard, CalendarDays } from "lucide-react";
 import { useWorkflow } from "@/lib/workflow-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
@@ -400,6 +400,18 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={location === "/calendar"}>
+              <Link
+                href="/calendar"
+                aria-current={location === "/calendar" ? "page" : undefined}
+                data-testid="link-calendar"
+              >
+                <CalendarDays className={location === "/calendar" ? "text-primary" : ""} aria-hidden="true" />
+                <span>Calendar</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={location === "/settings"}>
               <Link

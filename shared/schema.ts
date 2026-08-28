@@ -95,6 +95,8 @@ export const searchFiltersSchema = z.object({
   duration: z.nativeEnum(DurationFilter).default(DurationFilter.ANY),
   sortBy: z.nativeEnum(SortBy).default(SortBy.RELEVANCE),
   maxResults: z.number().min(1).max(50).default(25),
+  /** Optional competitor / series channel scope (L-618 / L-311). */
+  channelId: z.string().trim().min(2).max(128).optional(),
 });
 
 export type SearchFilters = z.infer<typeof searchFiltersSchema>;
@@ -144,6 +146,7 @@ export const searchProvenanceSchema = z.object({
     duration: z.nativeEnum(DurationFilter),
     sortBy: z.nativeEnum(SortBy),
     maxResults: z.number().int().min(1).max(50),
+    channelId: z.string().trim().min(2).max(128).optional(),
   }),
   orderedVideoIds: z.array(z.string().trim().min(1).max(128)).max(50),
 }).strict();
