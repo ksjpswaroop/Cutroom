@@ -15,7 +15,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "desktop:prepare": "tsx script/prepare-desktop-bundle.ts",
-    "desktop:build:macos": "APPLE_SIGNING_IDENTITY='Developer ID Application: SURYA JAGANNATHA PHANI,SWAROOP,MA KALLAKURI (97ZA7QV77G)' APPLE_TEAM_ID=97ZA7QV77G tauri build --bundles app && bash ./script/package-macos-dmg.sh",
+    "desktop:build:macos": "APPLE_SIGNING_IDENTITY='Developer ID Application: SURYA JAGANNATHA PHANI,SWAROOP,MA KALLAKURI (97ZA7QV77G)' APPLE_TEAM_ID=97ZA7QV77G TAURI_SIGNING_PRIVATE_KEY_PATH=\"${TAURI_SIGNING_PRIVATE_KEY_PATH:-$PWD/src-tauri/updater.key}\" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=\"${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-cutroom-v2-updater}\" tauri build --bundles app && bash ./script/package-macos-dmg.sh",
     "desktop:dmg": "bash ./script/package-macos-dmg.sh",
     "desktop:notarize": "bash ./script/notarize-macos.sh"
   },

@@ -17,6 +17,7 @@ preferences.json
 workflows/
 brand-kit.json
 content-calendar.json
+dist-release/
 
 # Updater signing private key (public key lives in tauri.conf.json)
 src-tauri/updater.key
