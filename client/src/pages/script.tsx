@@ -7,7 +7,7 @@ import {
   Download, RefreshCw, Image, X,
   ArrowRight, Play, Pause, SkipBack, Minus, Plus, Pencil, Save,
   SlidersHorizontal, ChevronDown, Undo2, Redo2, ArrowLeft,
-  Maximize2, Minimize2, Captions, CaptionsOff
+  Maximize2, Minimize2, Captions, CaptionsOff, FlipHorizontal
 } from "lucide-react";
 import { useLocation } from "wouter";
 import jsPDF from "jspdf";
@@ -760,6 +760,9 @@ function Teleprompter({ script, onSave }: { script: string; onSave: (script: str
   const [isEditing, setIsEditing] = useState(false);
   const [showCues, setShowCues] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [desktopMode, setDesktopMode] = useState(false);
+  const [mirrored, setMirrored] = useState(false);
+  const [isDesktopApp, setIsDesktopApp] = useState(false);
   const [draft, setDraft] = useState(script);
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [redoStack, setRedoStack] = useState<string[]>([]);
@@ -767,10 +770,26 @@ function Teleprompter({ script, onSave }: { script: string; onSave: (script: str
   useEffect(() => setDraft(script), [script]);
 
   useEffect(() => {
+    void import("@/lib/teleprompter-desktop").then((mod) => {
+      void mod.isTauriDesktop().then(setIsDesktopApp);
+    });
+  }, []);
+
+  useEffect(() => {
     const onFullscreenChange = () => setIsFullscreen(document.fullscreenElement === cardRef.current);
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (desktopMode) {
+        void import("@/lib/teleprompter-desktop").then((mod) => {
+          void mod.setTeleprompterDesktopMode(false);
+        });
+      }
+    };
+  }, [desktopMode]);
 
   useEffect(() => {
     if (!isPlaying || isEditing) return;
@@ -846,6 +865,12 @@ function Teleprompter({ script, onSave }: { script: string; onSave: (script: str
   const beginEditing = () => {
     setIsPlaying(false);
     if (document.fullscreenElement) void document.exitFullscreen();
+    if (desktopMode) {
+      setDesktopMode(false);
+      void import("@/lib/teleprompter-desktop").then((mod) => {
+        void mod.setTeleprompterDesktopMode(false);
+      });
+    }
     setDraft(script);
     setIsEditing(true);
   };
@@ -853,6 +878,14 @@ function Teleprompter({ script, onSave }: { script: string; onSave: (script: str
   const toggleFullscreen = async () => {
     if (document.fullscreenElement) await document.exitFullscreen();
     else await cardRef.current?.requestFullscreen();
+  };
+
+  const toggleDesktopMode = async () => {
+    const { setTeleprompterDesktopMode } = await import("@/lib/teleprompter-desktop");
+    const next = !desktopMode;
+    await setTeleprompterDesktopMode(next);
+    setDesktopMode(next);
+    if (next && document.fullscreenElement) await document.exitFullscreen();
   };
 
   const saveEdit = () => {
@@ -948,6 +981,29 @@ function Teleprompter({ script, onSave }: { script: string; onSave: (script: str
             <Button type="button" size="icon" variant="outline" onClick={() => void toggleFullscreen()} aria-label={isFullscreen ? "Exit fullscreen teleprompter" : "Open fullscreen teleprompter"} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
               {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant={mirrored ? "default" : "outline"}
+              onClick={() => setMirrored((value) => !value)}
+              aria-label={mirrored ? "Disable teleprompter mirror" : "Enable teleprompter mirror"}
+              title={mirrored ? "Mirror off" : "Mirror (for beam-splitter glass)"}
+              data-testid="button-teleprompter-mirror"
+            >
+              <FlipHorizontal className="h-4 w-4" />
+            </Button>
+            {isDesktopApp && (
+              <Button
+                type="button"
+                size="sm"
+                variant={desktopMode ? "default" : "outline"}
+                onClick={() => void toggleDesktopMode()}
+                data-testid="button-teleprompter-desktop"
+                title="Native fullscreen + always on top"
+              >
+                {desktopMode ? "Desktop on" : "Desktop"}
+              </Button>
+            )}
             <Button type="button" variant="outline" onClick={beginEditing} data-testid="button-edit-script"><Pencil className="mr-2 h-4 w-4" />Edit</Button>
           </>}
         </div>
@@ -981,6 +1037,7 @@ function Teleprompter({ script, onSave }: { script: string; onSave: (script: str
           <div
           ref={viewportRef}
           className="teleprompter-scrollbar h-[min(68vh,760px)] min-h-[440px] overflow-y-auto overscroll-contain bg-background px-8 sm:px-14 lg:px-20 fullscreen:h-[calc(100vh-69px)]"
+          style={mirrored ? { transform: "scaleX(-1)" } : undefined}
           onScroll={updateProgress}
           onKeyDown={(event) => {
             if (event.code === "Space") {

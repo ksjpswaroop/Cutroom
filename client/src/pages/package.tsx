@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ClipboardList, Download, Loader2, Package, Sparkles } from "lucide-react";
+import { ClipboardList, Download, Film, Loader2, Package, Sparkles } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,9 +67,16 @@ export default function PackagePage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { state, setPackageData, goToStep } = useWorkflow();
-  const [busy, setBusy] = useState<"package" | "brief" | "export" | null>(null);
+  const [busy, setBusy] = useState<"package" | "brief" | "export" | "clips" | null>(null);
   const [publishPackage, setPublishPackage] = useState<PublishPackage | null>(null);
   const [productionBrief, setProductionBrief] = useState<ProductionBrief | null>(null);
+  const [clipBriefs, setClipBriefs] = useState<{
+    title: string;
+    sectionTitle: string;
+    hook: string;
+    estimatedSec: number;
+    evidenceClass: "inferred";
+  }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -159,6 +166,29 @@ export default function PackagePage() {
     }
   };
 
+  const generateClipBriefs = async () => {
+    if (!state.cachedScript?.script) {
+      setError("Generate a script first to derive Shorts/clip briefs.");
+      return;
+    }
+    setBusy("clips");
+    setError(null);
+    try {
+      const body = await apiRequest("POST", "/api/package/clip-briefs", {
+        scriptContent: state.cachedScript.script,
+      }) as { briefs: NonNullable<typeof clipBriefs> };
+      setClipBriefs(body.briefs || []);
+      toast({
+        title: "Clip briefs ready",
+        description: "Inferred Shorts-sized cuts from script sections — planning only.",
+      });
+    } catch (err: any) {
+      setError(err?.message || "Unable to derive clip briefs.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const handleExport = async () => {
     setBusy("export");
     setError(null);
@@ -221,6 +251,10 @@ export default function PackagePage() {
         <Button variant="secondary" onClick={() => void generateBrief()} disabled={busy !== null || !state.cachedScript?.script}>
           {busy === "brief" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardList className="mr-2 h-4 w-4" />}
           Production brief
+        </Button>
+        <Button variant="outline" onClick={() => void generateClipBriefs()} disabled={busy !== null || !state.cachedScript?.script} data-testid="button-clip-briefs">
+          {busy === "clips" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Film className="mr-2 h-4 w-4" />}
+          Shorts / clip briefs
         </Button>
         <Button variant="outline" onClick={() => void handleExport()} disabled={busy !== null}>
           {busy === "export" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
@@ -349,6 +383,28 @@ export default function PackagePage() {
                 </ul>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {clipBriefs && clipBriefs.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Film className="h-4 w-4" />Shorts / clip briefs</CardTitle>
+            <CardDescription>
+              Inferred from script sections at teleprompter pace. Planning artifacts only — no renderer.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {clipBriefs.map((brief) => (
+              <div key={`${brief.sectionTitle}-${brief.title}`} className="rounded-md border border-border p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium">{brief.title}</p>
+                  <Badge variant="outline">{brief.evidenceClass} · ~{brief.estimatedSec}s</Badge>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{brief.hook}</p>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}

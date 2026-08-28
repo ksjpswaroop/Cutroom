@@ -15,6 +15,7 @@ tmp-artifacts/
 previews/
 preferences.json
 workflows/
+brand-kit.json
 
 # Local workspace and retired platform metadata
 .replit

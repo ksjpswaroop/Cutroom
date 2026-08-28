@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -40,6 +41,15 @@ interface ApiKeyStatus {
     ffmpegAvailable: boolean;
     ffmpegPath: string | null;
     engine: string;
+  };
+  brandKit?: {
+    channelName: string;
+    voiceNotes: string;
+    primaryColor: string;
+    accentColor: string;
+    fontPreference: string;
+    thumbnailStyleNotes: string;
+    forbiddenClaims: string[];
   };
   models: {
     text: string;
@@ -157,6 +167,14 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingLibrary, setIsSavingLibrary] = useState(false);
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+  const [isSavingBrandKit, setIsSavingBrandKit] = useState(false);
+  const [brandChannel, setBrandChannel] = useState("");
+  const [brandVoice, setBrandVoice] = useState("");
+  const [brandPrimary, setBrandPrimary] = useState("#0A66C2");
+  const [brandAccent, setBrandAccent] = useState("#378FE9");
+  const [brandFont, setBrandFont] = useState("");
+  const [brandThumbNotes, setBrandThumbNotes] = useState("");
+  const [brandForbidden, setBrandForbidden] = useState("");
   const [isDesktop, setIsDesktop] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const youtubeKeyRef = useRef<HTMLInputElement>(null);
@@ -182,6 +200,15 @@ export default function SettingsPage() {
         setOpenaiBaseUrl(nextStatus.models.openaiBaseUrl || "https://api.openai.com/v1");
         setOllamaModel(nextStatus.models.ollamaModel || "llama3.2");
         setOllamaBaseUrl(nextStatus.models.ollamaBaseUrl || "http://127.0.0.1:11434/v1");
+        if (nextStatus.brandKit) {
+          setBrandChannel(nextStatus.brandKit.channelName || "");
+          setBrandVoice(nextStatus.brandKit.voiceNotes || "");
+          setBrandPrimary(nextStatus.brandKit.primaryColor || "#0A66C2");
+          setBrandAccent(nextStatus.brandKit.accentColor || "#378FE9");
+          setBrandFont(nextStatus.brandKit.fontPreference || "");
+          setBrandThumbNotes(nextStatus.brandKit.thumbnailStyleNotes || "");
+          setBrandForbidden((nextStatus.brandKit.forbiddenClaims || []).join("\n"));
+        }
       } catch (error: any) {
         setLoadError(error?.message || "Unable to load settings.");
       } finally {
@@ -287,6 +314,38 @@ export default function SettingsPage() {
       });
     } finally {
       setIsSavingPreferences(false);
+    }
+  };
+
+  const handleSaveBrandKit = async () => {
+    setIsSavingBrandKit(true);
+    try {
+      const response = await apiRequest("PUT", "/api/settings/brand-kit", {
+        channelName: brandChannel,
+        voiceNotes: brandVoice,
+        primaryColor: brandPrimary,
+        accentColor: brandAccent,
+        fontPreference: brandFont,
+        thumbnailStyleNotes: brandThumbNotes,
+        forbiddenClaims: brandForbidden
+          .split(/\n|,/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .slice(0, 20),
+      }) as { success: boolean; brandKit: ApiKeyStatus["brandKit"] };
+      setStatus((current) => ({ ...current, brandKit: response.brandKit }));
+      toast({
+        title: "Brand kit saved",
+        description: "Style memory applies to thumbnails and publish packages on this machine.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Could not save brand kit",
+        description: error?.message || "Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingBrandKit(false);
     }
   };
 
@@ -473,6 +532,54 @@ export default function SettingsPage() {
               {(status.preferences?.assemblePreviewEnabled || status.assemblePreview?.assemblePreviewEnabled)
                 ? "On"
                 : "Off"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Brand kit</CardTitle>
+          <CardDescription>
+            Style memory across workflows: voice, colors, thumbnail notes, and claims you never want invented.
+            Applied to thumbnails and publish packages. Stored locally only.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="brand-channel">Channel name</Label>
+              <Input id="brand-channel" value={brandChannel} onChange={(e) => setBrandChannel(e.target.value)} data-testid="input-brand-channel" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="brand-font">Font preference</Label>
+              <Input id="brand-font" value={brandFont} onChange={(e) => setBrandFont(e.target.value)} placeholder="Heavy sans, condensed display…" data-testid="input-brand-font" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="brand-primary">Primary color</Label>
+              <Input id="brand-primary" value={brandPrimary} onChange={(e) => setBrandPrimary(e.target.value)} className="font-mono" data-testid="input-brand-primary" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="brand-accent">Accent color</Label>
+              <Input id="brand-accent" value={brandAccent} onChange={(e) => setBrandAccent(e.target.value)} className="font-mono" data-testid="input-brand-accent" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="brand-voice">Voice & tone</Label>
+            <Textarea id="brand-voice" value={brandVoice} onChange={(e) => setBrandVoice(e.target.value)} rows={3} data-testid="input-brand-voice" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="brand-thumb">Thumbnail style notes</Label>
+            <Textarea id="brand-thumb" value={brandThumbNotes} onChange={(e) => setBrandThumbNotes(e.target.value)} rows={3} data-testid="input-brand-thumb" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="brand-forbidden">Forbidden claims (one per line)</Label>
+            <Textarea id="brand-forbidden" value={brandForbidden} onChange={(e) => setBrandForbidden(e.target.value)} rows={3} placeholder="guaranteed results&#10;overnight success" data-testid="input-brand-forbidden" />
+          </div>
+          <div className="flex justify-end">
+            <Button type="button" onClick={() => void handleSaveBrandKit()} disabled={isSavingBrandKit || Boolean(loadError)} data-testid="button-save-brand-kit">
+              {isSavingBrandKit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Save brand kit
             </Button>
           </div>
         </CardContent>

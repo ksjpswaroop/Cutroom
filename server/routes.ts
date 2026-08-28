@@ -34,8 +34,14 @@ import {
   renderAssemblePreview,
   resolveWorkflowPreviewPath,
 } from "./assemble-preview";
+import {
+  brandKitUpdateSchema,
+  readBrandKit,
+  writeBrandKit,
+} from "./brand-kit";
 import { createReadStream } from "node:fs";
 import { access as fsAccess, constants as fsConstants } from "node:fs/promises";
+import { clipBriefsFromScript } from "@shared/clip-briefs";
 import { normalizeProviderError, providerErrorPayload } from "./provider-errors";
 import { thumbnailGenerationRequestSchema, thumbnailSuggestionsRequestSchema } from "./thumbnail-contract";
 import {
@@ -122,11 +128,13 @@ export async function registerRoutes(
       const library = await readLibraryConfig();
       const preferences = await readPreferences();
       const assemble = await getAssemblePreviewStatus();
+      const brandKit = await readBrandKit();
       return res.json({
         ...await getApiKeyStatusAsync(),
         libraryPath: library.path,
         preferences,
         assemblePreview: assemble,
+        brandKit,
       });
     } catch (error) {
       console.error("Settings status error:", error);
@@ -148,6 +156,44 @@ export async function registerRoutes(
       return res.status(400).json({
         error: error?.message || "Unable to save preferences.",
       });
+    }
+  });
+
+  app.put("/api/settings/brand-kit", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Settings are available only from this machine." });
+    }
+    try {
+      const input = brandKitUpdateSchema.parse(req.body);
+      const brandKit = await writeBrandKit(input);
+      return res.json({ success: true, brandKit });
+    } catch (error: any) {
+      return res.status(400).json({
+        error: error?.message || "Unable to save brand kit.",
+      });
+    }
+  });
+
+  app.post("/api/package/clip-briefs", rateLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      const parsed = z.object({
+        scriptContent: z.string().trim().min(20).max(80_000),
+        wpm: z.number().int().min(80).max(250).optional(),
+      }).strict().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid clip briefs request",
+          details: parsed.error.flatten(),
+        });
+      }
+      const briefs = clipBriefsFromScript(parsed.data.scriptContent, {
+        wpm: parsed.data.wpm,
+      });
+      return res.json({ briefs, evidenceClass: "inferred" as const });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to derive clip briefs." });
     }
   });
 

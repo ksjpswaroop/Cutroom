@@ -66,8 +66,8 @@ Update this file when work starts or finishes. See [ROADMAP.md](ROADMAP.md) for 
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-308 | todo | Brand kit + style memory |
-| L-309 | todo | Teleprompter desktop mode |
+| L-308 | done | Brand kit + style memory (`brand-kit.json`; Settings UI; prompts for thumbnail/package) |
+| L-309 | done | Teleprompter desktop mode (Tauri fullscreen + always-on-top; mirror flip) |
 | L-310 | done | Post-publish measurement checklist (in publish package) |
 
 ### Later / optional
@@ -76,7 +76,7 @@ Update this file when work starts or finishes. See [ROADMAP.md](ROADMAP.md) for 
 | --- | --- | --- |
 | L-311 | todo | Competitor/series workspace |
 | L-312 | todo | Content calendar / batch pipeline |
-| L-313 | todo | Shorts/clip briefs from long script |
+| L-313 | done | Shorts/clip briefs from long script (inferred planning cards; L-505) |
 | L-314 | todo | Optional YouTube OAuth Studio mirror |
 
 ## Phase 4 — Strategy follow-through (v1.1 → v1.2)
@@ -105,11 +105,11 @@ Product strategy baseline: [docs/STRATEGY.md](docs/STRATEGY.md), [docs/RELEASE_P
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-501 | todo | Brand kit + style memory (L-308) |
-| L-502 | todo | Teleprompter desktop mode (L-309) |
+| L-501 | done | Brand kit + style memory (L-308) |
+| L-502 | done | Teleprompter desktop mode (L-309) |
 | L-503 | todo | Competitor/series workspace (L-311) |
 | L-504 | todo | Content calendar / batch (L-312) |
-| L-505 | todo | Shorts/clip briefs (L-313) |
+| L-505 | done | Shorts/clip briefs (L-313) — inferred section→clip cards; no renderer |
 | L-506 | todo | Optional Studio OAuth mirror with strict labeling (L-314) |
 | L-507 | todo | Auto-updater endpoint live |
 | L-508 | todo | Optional Hermes *companion* experiment (cron digest only; off by default) |

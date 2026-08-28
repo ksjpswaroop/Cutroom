@@ -851,7 +851,7 @@ const referenceRoleDescriptions: Record<ThumbnailConfig["referenceImages"][numbe
   composition: "Use as a spatial-layout reference while creating original visual content.",
 };
 
-export function buildThumbnailPrompt(topic: string, config: ThumbnailConfig): string {
+export function buildThumbnailPrompt(topic: string, config: ThumbnailConfig, brandNotes = ""): string {
   const references = config.referenceImages.map((reference, index) => (
     `Image ${index + 1}: ${referenceRoleDescriptions[reference.role]}`
   ));
@@ -872,7 +872,7 @@ ${config.honestPromise ? `Viewer promise: "${config.honestPromise}"` : ""}
 ${config.thumbnailConcept ? `Selected idea thumbnail concept: "${config.thumbnailConcept}"` : ""}
 ${config.thumbnailDescription ? `Creator direction: "${config.thumbnailDescription}"` : ""}
 ${config.variationDirection ? `Variation direction: "${config.variationDirection}"` : ""}
-
+${brandNotes ? `\n${brandNotes}\n` : ""}
 Visual direction:
 - Style preset: ${config.style}. ${styleDescriptions[config.style]}
 - Composition: ${config.composition}
@@ -899,7 +899,9 @@ export async function generateThumbnail(
   topic: string,
   config: ThumbnailConfig
 ): Promise<ThumbnailResult> {
-  const prompt = buildThumbnailPrompt(topic, config);
+  const { brandKitPromptFragment, readBrandKit } = await import("./brand-kit");
+  const brandNotes = brandKitPromptFragment(await readBrandKit());
+  const prompt = buildThumbnailPrompt(topic, config, brandNotes);
   try {
     const { getImageProvider } = await import("./ai");
     const result = await getImageProvider().generateImage({
@@ -1095,6 +1097,8 @@ export async function generatePublishPackage(request: PublishPackageRequest) {
   const observedTitlesBlock = observedTitleSamples.length
     ? JSON.stringify(observedTitleSamples.slice(0, 30))
     : "None supplied.";
+  const { brandKitPromptFragment, readBrandKit } = await import("./brand-kit");
+  const brandNotes = brandKitPromptFragment(await readBrandKit());
 
   const prompt = `You are Cutroom's publish-package composer for YouTube creators.
 Return strict JSON only matching this shape:
@@ -1118,7 +1122,7 @@ Rules:
 - Titles max 100 chars. Mark evidenceClass observed only when the title closely echoes an observedTitleSamples entry; else inferred.
 - Chapters: use script section order when a script is supplied; timestamps will be pace-validated server-side.
 - Hooks are spoken cold-opens under 280 chars.
-
+${brandNotes ? `\n${brandNotes}\n` : ""}
 Topic: ${request.topic}
 Selected idea:
 ${ideaBlock}
