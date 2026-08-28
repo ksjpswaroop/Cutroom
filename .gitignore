@@ -18,6 +18,7 @@ preferences.json
 brand-kit.json
 content-calendar.json
 dist-release/
+.notary.env
 
 # Updater signing private key (public key lives in tauri.conf.json)
 src-tauri/updater.key
