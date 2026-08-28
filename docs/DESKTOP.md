@@ -41,7 +41,7 @@ This machine already has:
 Signed artifacts land at:
 
 - `src-tauri/target/release/bundle/macos/Cutroom.app`
-- `src-tauri/target/release/bundle/dmg/Cutroom_1.0.0_aarch64.dmg`
+- `src-tauri/target/release/bundle/dmg/Cutroom_2.0.0_aarch64.dmg`
 
 **Notarization still needs one of these credential sets** (not stored in the repo):
 

@@ -96,7 +96,7 @@ Product strategy baseline: [docs/STRATEGY.md](docs/STRATEGY.md), [docs/RELEASE_P
 | L-409 | done | OS keychain secrets migration (from app-data `.env`; macOS `security`, models stay in `.env`) |
 | L-410 | todo | macOS notarization complete + Gatekeeper green (needs Apple notary creds) |
 | L-411 | todo | Windows signed installer smoke |
-| L-412 | todo | Linux AppImage/deb smoke |
+| L-412 | done | Linux AppImage/deb smoke — `cutroom_2.0.0_arm64.deb` + `cutroom-linux-aarch64` on GitHub Release v2.0.0 |
 | L-413 | todo | Caption-grounded Insights with cheap/local models (after L-608 YouTube-captions path) |
 | L-414 | todo | Comment mine follow-up if L-609 needs local/cheap-model fallback |
 | L-415 | cancelled | Replace Node sidecar with Hermes — rejected; see L-404 |
