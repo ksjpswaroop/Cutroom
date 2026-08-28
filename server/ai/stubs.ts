@@ -8,7 +8,7 @@ const STUB_LABELS: Record<Exclude<AiProviderId, "gemini">, string> = {
 };
 
 /**
- * Placeholders for L-407. Selecting these without configuration yields a clear error.
+ * Test helper: force a clear not-configured error without hitting the network.
  */
 export function createUnconfiguredTextProvider(
   id: Exclude<AiProviderId, "gemini">,

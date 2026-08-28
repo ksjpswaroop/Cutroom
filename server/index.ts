@@ -56,6 +56,38 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  const { hydrateSecretsFromKeychain, migrateEnvSecretsToKeychain, resolveSecretsBackend } = await import("./keychain");
+  const hydrated = await hydrateSecretsFromKeychain();
+  if (hydrated.loaded.length > 0) {
+    log(`loaded ${hydrated.loaded.length} secret(s) from OS keychain`);
+  }
+
+  // If keychain is active, scrub any leftover plaintext secrets from `.env`.
+  if (hydrated.backend === "keychain") {
+    const { readFile, writeFile, chmod, mkdir } = await import("node:fs/promises");
+    const { envPath, envTempPath, root } = getEnvFilePaths();
+    try {
+      await mkdir(root, { recursive: true });
+      const raw = await readFile(envPath, "utf8");
+      const { contents, migrated } = await migrateEnvSecretsToKeychain(raw);
+      if (migrated.length > 0 || contents !== raw) {
+        await writeFile(envTempPath, contents, { encoding: "utf8", mode: 0o600 });
+        const { rename } = await import("node:fs/promises");
+        await rename(envTempPath, envPath);
+        await chmod(envPath, 0o600);
+        if (migrated.length > 0) {
+          log(`migrated ${migrated.length} secret(s) from .env into OS keychain`);
+        }
+      }
+    } catch (error: any) {
+      if (error?.code !== "ENOENT") {
+        log(`keychain migration skipped: ${error?.message || error}`, "express");
+      }
+    }
+  } else {
+    await resolveSecretsBackend();
+  }
+
   const { registerRoutes } = await import("./routes");
   await registerRoutes(httpServer, app);
 
@@ -81,13 +113,14 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || "5000", 10);
   const host = process.env.HOST || "127.0.0.1";
   const { root } = getEnvFilePaths();
+  const secretsBackend = await (await import("./keychain")).resolveSecretsBackend();
   httpServer.listen(
     {
       port,
       host,
     },
     () => {
-      log(`serving on ${host}:${port} (secrets root: ${root})`);
+      log(`serving on ${host}:${port} (secrets root: ${root}; secrets: ${secretsBackend})`);
     },
   );
 })();

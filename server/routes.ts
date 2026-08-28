@@ -16,13 +16,26 @@ import {
   scriptInputSchema,
 } from "@shared/schema";
 import { z } from "zod";
-import { apiKeySettingsSchema, getApiKeyStatus, isLocalSettingsRequest, saveApiKeySettings } from "./settings";
+import { apiKeySettingsSchema, getApiKeyStatusAsync, isLocalSettingsRequest, saveApiKeySettings } from "./settings";
 import {
   clearLibraryConfig,
   librarySettingsSchema,
   readLibraryConfig,
   writeLibraryConfig,
 } from "./library-config";
+import {
+  preferencesUpdateSchema,
+  readPreferences,
+  writePreferences,
+} from "./preferences";
+import {
+  assemblePreviewRequestSchema,
+  getAssemblePreviewStatus,
+  renderAssemblePreview,
+  resolveWorkflowPreviewPath,
+} from "./assemble-preview";
+import { createReadStream } from "node:fs";
+import { access as fsAccess, constants as fsConstants } from "node:fs/promises";
 import { normalizeProviderError, providerErrorPayload } from "./provider-errors";
 import { thumbnailGenerationRequestSchema, thumbnailSuggestionsRequestSchema } from "./thumbnail-contract";
 import {
@@ -107,13 +120,92 @@ export async function registerRoutes(
     }
     try {
       const library = await readLibraryConfig();
+      const preferences = await readPreferences();
+      const assemble = await getAssemblePreviewStatus();
       return res.json({
-        ...getApiKeyStatus(),
+        ...await getApiKeyStatusAsync(),
         libraryPath: library.path,
+        preferences,
+        assemblePreview: assemble,
       });
     } catch (error) {
       console.error("Settings status error:", error);
       return res.status(500).json({ error: "Unable to load settings." });
+    }
+  });
+
+  app.put("/api/settings/preferences", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Settings are available only from this machine." });
+    }
+    try {
+      const input = preferencesUpdateSchema.parse(req.body);
+      const preferences = await writePreferences(input);
+      const assemble = await getAssemblePreviewStatus();
+      return res.json({ success: true, preferences, assemblePreview: assemble });
+    } catch (error: any) {
+      return res.status(400).json({
+        error: error?.message || "Unable to save preferences.",
+      });
+    }
+  });
+
+  app.get("/api/preview/status", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Preview status is available only from this machine." });
+    }
+    try {
+      return res.json(await getAssemblePreviewStatus());
+    } catch (error) {
+      console.error("Preview status error:", error);
+      return res.status(500).json({ error: "Unable to load preview status." });
+    }
+  });
+
+  app.post("/api/preview/assemble", rateLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Assemble preview is available only from this machine." });
+    }
+    try {
+      const parsed = assemblePreviewRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid assemble preview request",
+          details: parsed.error.flatten(),
+        });
+      }
+      const includeDataUrl = req.query.includeDataUrl === "1";
+      const result = await renderAssemblePreview(parsed.data, { includeDataUrl });
+      return res.json(result);
+    } catch (error: any) {
+      console.error("Assemble preview error:", error);
+      const status = typeof error?.status === "number" ? error.status : 500;
+      return res.status(status).json({
+        error: error?.message || "Unable to assemble preview.",
+      });
+    }
+  });
+
+  app.get("/api/workflows/:id/preview", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Preview files are available only from this machine." });
+    }
+    if (!isValidWorkflowId(req.params.id)) {
+      return res.status(400).json({ error: "Invalid workflow id." });
+    }
+    try {
+      const previewPath = await resolveWorkflowPreviewPath(req.params.id);
+      if (!previewPath) return res.status(404).json({ error: "No preview.mp4 for this workflow yet." });
+      await fsAccess(previewPath, fsConstants.R_OK);
+      res.setHeader("Content-Type", "video/mp4");
+      createReadStream(previewPath).pipe(res);
+    } catch (error) {
+      console.error("Preview file error:", error);
+      return res.status(500).json({ error: "Unable to read preview.mp4." });
     }
   });
 

@@ -355,6 +355,7 @@ export default function PackagePage() {
 
       <p className="text-xs text-muted-foreground">
         Prefer a different thumbnail? <Link href="/thumbnail" className="underline">Open Thumbnail Creator</Link>.
+        {" "}Optional assemble preview (Settings Off by default): <Link href="/video" className="underline">Open Assemble Preview</Link>.
       </p>
     </div>
   );

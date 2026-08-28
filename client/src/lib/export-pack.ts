@@ -6,6 +6,7 @@ export interface ProjectPackInput {
   thumbnailDataUrl?: string;
   publishPackage?: unknown;
   productionBrief?: unknown;
+  previewDataUrl?: string;
 }
 
 export interface ProjectPackResult {
@@ -92,6 +93,13 @@ export async function exportProjectPack(input: ProjectPackInput): Promise<Projec
         is_base64: true,
       });
     }
+  }
+  if (input.previewDataUrl?.startsWith("data:video/mp4;base64,")) {
+    files.push({
+      filename: `${base}/preview.mp4`,
+      content: input.previewDataUrl.slice("data:video/mp4;base64,".length),
+      is_base64: true,
+    });
   }
 
   if (await isTauri()) {

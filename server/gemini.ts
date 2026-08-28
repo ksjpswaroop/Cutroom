@@ -899,60 +899,22 @@ export async function generateThumbnail(
   topic: string,
   config: ThumbnailConfig
 ): Promise<ThumbnailResult> {
-  if (!getGeminiApiKey()) {
-    throw new Error("Gemini API key is not configured. Add it in Settings before generating a thumbnail.");
-  }
-  const contentParts: any[] = [];
-  for (const reference of config.referenceImages) {
-    const match = /^data:(image\/(?:png|jpeg));base64,(.+)$/.exec(reference.image);
-    if (!match) continue;
-    contentParts.push({
-      inlineData: {
-        mimeType: match[1],
-        data: match[2],
-      },
-    });
-  }
-
   const prompt = buildThumbnailPrompt(topic, config);
-
-  contentParts.push({ text: prompt });
-
   try {
-    const response = await getGeminiClient().models.generateContent({
-      model: getGeminiImageModel(),
-      contents: [{ role: "user", parts: contentParts }],
-      config: {
-        responseModalities: [Modality.TEXT, Modality.IMAGE],
-        imageConfig: {
-          aspectRatio: "16:9",
-        },
-      } as any,
+    const { getImageProvider } = await import("./ai");
+    const result = await getImageProvider().generateImage({
+      prompt,
+      referenceImages: config.referenceImages.map((reference) => reference.image),
+      aspectRatio: "16:9",
     });
-
-    const candidate = response.candidates?.[0];
-    const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
-
-    if (imagePart?.inlineData?.data) {
-      const mimeType = imagePart.inlineData.mimeType || "image/png";
-      const imageData = `data:${mimeType};base64,${imagePart.inlineData.data}`;
-      return {
-        imageData,
-        prompt,
-        model: `${getGeminiImageModelLabel(getGeminiImageModel())} (${getGeminiImageModel()})`,
-      };
-    }
-
-    throw new ProviderError({
-      message: "Gemini returned an invalid response without image data",
-      category: "invalid_response",
-      code: "GEMINI_IMAGE_INVALID_RESPONSE",
-      status: 502,
-      retryable: false,
-    });
+    return {
+      imageData: result.imageDataUrl,
+      prompt: result.prompt,
+      model: result.model,
+    };
   } catch (error: unknown) {
     const normalized = normalizeProviderError(error, "gemini");
-    console.error(`Thumbnail generation failed with ${getGeminiImageModel()}:`, normalized.code);
+    console.error("Thumbnail generation failed:", normalized.code);
     throw normalized;
   }
 }

@@ -12,6 +12,9 @@ vite.config.ts.*
 src-tauri/resources/app
 src-tauri/target
 tmp-artifacts/
+previews/
+preferences.json
+workflows/
 
 # Local workspace and retired platform metadata
 .replit

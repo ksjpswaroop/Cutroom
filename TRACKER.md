@@ -91,9 +91,9 @@ Product strategy baseline: [docs/STRATEGY.md](docs/STRATEGY.md), [docs/RELEASE_P
 | L-404 | done | Hermes backend decision (`docs/HERMES_DECISION.md`) — **do not replace Express** |
 | L-405 | done | Version progression plan (`docs/RELEASE_PLAN.md`) + roadmap link-up |
 | L-406 | done | Extract `server/ai` provider interface (Gemini adapter only) |
-| L-407 | todo | OpenAI-compatible + Ollama + OpenRouter Settings wiring |
-| L-408 | todo | Local image provider spike (Ollama FLUX.2 Klein / Z-Image) |
-| L-409 | todo | OS keychain secrets migration (from app-data `.env`) |
+| L-407 | done | OpenAI-compatible + Ollama + OpenRouter Settings wiring |
+| L-408 | done | Local image provider spike (Ollama FLUX.2 Klein / Z-Image via OpenAI-compatible `/images/generations`; `CUTROOM_IMAGE_PROVIDER`) |
+| L-409 | done | OS keychain secrets migration (from app-data `.env`; macOS `security`, models stay in `.env`) |
 | L-410 | todo | macOS notarization complete + Gatekeeper green (needs Apple notary creds) |
 | L-411 | todo | Windows signed installer smoke |
 | L-412 | todo | Linux AppImage/deb smoke |
@@ -138,7 +138,7 @@ Keep **Evidence ledger** as the Insights feature name. Do not add a fifth resear
 | ID | Status | Item |
 | --- | --- | --- |
 | L-601 | done | Rebrand remaining Cutroom strings/assets/package/bundle/env/export names → `cutroom` / `Cutroom` (Evidence ledger name preserved; legacy IndexedDB/key aliases intentionally kept) |
-| L-602 | doing | Cutroom app icon: 16:9 frame, vertical splice, right half offset; keep rounded-square blue shell (`client/public/cutroom-mark.svg` → Cutroom mark) |
+| L-602 | done | Cutroom app icon: 16:9 frame, vertical splice, right half offset; keep rounded-square blue shell (`client/public/cutroom.svg` + `cutroom-mark.svg`) |
 | L-603 | done | Preserve Insights **Evidence ledger** feature name through the rebrand |
 
 #### Script throughline
@@ -169,9 +169,9 @@ Keep **Evidence ledger** as the Insights feature name. Do not add a fifth resear
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-613 | todo | Optional `/video` step after Package; Settings default **Off**; engine `assemble` only |
-| L-614 | todo | Assemble preview: title card + thumbnail Ken Burns + narration captions + chapter cards (Remotion or FFmpeg) |
-| L-615 | todo | Write `preview.mp4` into the project export pack; no new API key |
+| L-613 | done | Optional `/video` step after Package; Settings default **Off**; engine `assemble` only |
+| L-614 | done | Assemble preview: title card + thumbnail Ken Burns + narration captions + chapter cards (FFmpeg) |
+| L-615 | done | Write `preview.mp4` into the project export pack; no new API key |
 
 ### P1 — Same version if time
 

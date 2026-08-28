@@ -1,6 +1,14 @@
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import type { Request } from "express";
 import { z } from "zod";
+import { AI_PROVIDER_IDS, isAiProviderId, type AiProviderId } from "./ai";
+import {
+  migrateEnvSecretsToKeychain,
+  persistSecret,
+  resolveSecretsBackend,
+  stripSecretAssignments,
+  type SecretsBackend,
+} from "./keychain";
 import { getEnvFilePaths } from "./env-path";
 import { configureGeminiApiKey, configureGeminiModels } from "./gemini";
 import {
@@ -19,6 +27,14 @@ const SUPPORTED_KEYS = [
   "GEMINI_API_KEY",
   "GEMINI_TEXT_MODEL",
   "GEMINI_IMAGE_MODEL",
+  "CUTROOM_AI_PROVIDER",
+  "OPENROUTER_API_KEY",
+  "OPENROUTER_MODEL",
+  "OPENAI_API_KEY",
+  "OPENAI_BASE_URL",
+  "OPENAI_MODEL",
+  "OLLAMA_BASE_URL",
+  "OLLAMA_MODEL",
 ] as const;
 
 type SupportedKey = (typeof SUPPORTED_KEYS)[number];
@@ -28,6 +44,14 @@ export interface ApiKeySettings {
   geminiApiKey?: string;
   geminiTextModel?: string;
   geminiImageModel?: string;
+  aiProvider?: string;
+  openrouterApiKey?: string;
+  openrouterModel?: string;
+  openaiApiKey?: string;
+  openaiBaseUrl?: string;
+  openaiModel?: string;
+  ollamaBaseUrl?: string;
+  ollamaModel?: string;
 }
 
 export const apiKeySettingsSchema = z.object({
@@ -35,6 +59,14 @@ export const apiKeySettingsSchema = z.object({
   geminiApiKey: z.string().trim().min(8).max(512).optional(),
   geminiTextModel: z.string().refine(isGeminiTextModel, "Select a supported Gemini text model.").optional(),
   geminiImageModel: z.string().refine(isGeminiImageModel, "Select a supported Gemini image model.").optional(),
+  aiProvider: z.string().refine(isAiProviderId, "Select a supported AI text provider.").optional(),
+  openrouterApiKey: z.string().trim().min(8).max(512).optional(),
+  openrouterModel: z.string().trim().min(1).max(200).optional(),
+  openaiApiKey: z.string().trim().min(8).max(512).optional(),
+  openaiBaseUrl: z.string().trim().url().max(500).optional(),
+  openaiModel: z.string().trim().min(1).max(200).optional(),
+  ollamaBaseUrl: z.string().trim().url().max(500).optional(),
+  ollamaModel: z.string().trim().min(1).max(200).optional(),
 }).strict();
 
 function isLoopbackAddress(address: string | undefined): boolean {
@@ -122,20 +154,53 @@ export function getApiKeyStatus() {
   const imageModel = isGeminiImageModel(process.env.GEMINI_IMAGE_MODEL || "")
     ? process.env.GEMINI_IMAGE_MODEL as GeminiImageModel
     : DEFAULT_GEMINI_IMAGE_MODEL;
+  const aiProvider: AiProviderId = isAiProviderId(process.env.CUTROOM_AI_PROVIDER || "")
+    ? (process.env.CUTROOM_AI_PROVIDER as AiProviderId)
+    : "gemini";
 
   return {
     youtube: Boolean(process.env.YOUTUBE_API_KEY?.trim()),
     gemini: Boolean(process.env.GEMINI_API_KEY?.trim()),
+    openrouter: Boolean(process.env.OPENROUTER_API_KEY?.trim()),
+    openaiCompatible: Boolean(
+      process.env.OPENAI_API_KEY?.trim() || process.env.OPENAI_COMPATIBLE_API_KEY?.trim(),
+    ),
+    ollama: true,
+    aiProvider,
+    aiProviderOptions: AI_PROVIDER_IDS.map((id) => ({
+      id,
+      label:
+        id === "gemini"
+          ? "Gemini"
+          : id === "openrouter"
+            ? "OpenRouter"
+            : id === "ollama"
+              ? "Ollama (local)"
+              : "OpenAI-compatible",
+    })),
     models: {
       text: textModel,
       image: imageModel,
       textOptions: GEMINI_TEXT_MODELS,
       imageOptions: GEMINI_IMAGE_MODELS,
+      openrouterModel: process.env.OPENROUTER_MODEL?.trim() || "openrouter/auto",
+      openaiModel: process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini",
+      ollamaModel: process.env.OLLAMA_MODEL?.trim() || "llama3.2",
+      openaiBaseUrl: process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1",
+      ollamaBaseUrl: process.env.OLLAMA_BASE_URL?.trim() || "http://127.0.0.1:11434/v1",
     },
     storage: (process.env.CUTROOM_APP_DATA?.trim() || process.env.LEDGER_APP_DATA?.trim())
       ? "app-data"
       : "cwd",
+    secretsBackend: "env" as SecretsBackend,
   };
+}
+
+/** Async status with resolved secrets backend (keychain vs env). */
+export async function getApiKeyStatusAsync() {
+  const status = getApiKeyStatus();
+  const secretsBackend = await resolveSecretsBackend();
+  return { ...status, secretsBackend };
 }
 
 function validateApiKey(value: unknown, label: string): string | undefined {
@@ -173,13 +238,28 @@ function setEnvValue(contents: string, key: SupportedKey, value: string): string
 export async function saveApiKeySettings(input: ApiKeySettings) {
   const youtubeApiKey = validateApiKey(input.youtubeApiKey, "YouTube API key");
   const geminiApiKey = validateApiKey(input.geminiApiKey, "Gemini API key");
+  const openrouterApiKey = validateApiKey(input.openrouterApiKey, "OpenRouter API key");
+  const openaiApiKey = validateApiKey(input.openaiApiKey, "OpenAI-compatible API key");
   const currentStatus = getApiKeyStatus();
   const textModel = input.geminiTextModel ?? currentStatus.models.text;
   const imageModel = input.geminiImageModel ?? currentStatus.models.image;
+  const aiProvider = input.aiProvider ?? currentStatus.aiProvider;
+
+  const hasProviderExtras = Boolean(
+    input.aiProvider
+    || openrouterApiKey
+    || openaiApiKey
+    || input.openrouterModel
+    || input.openaiBaseUrl
+    || input.openaiModel
+    || input.ollamaBaseUrl
+    || input.ollamaModel,
+  );
 
   if (!youtubeApiKey && !geminiApiKey
     && input.geminiTextModel === undefined
-    && input.geminiImageModel === undefined) {
+    && input.geminiImageModel === undefined
+    && !hasProviderExtras) {
     throw new Error("Enter a replacement key or select a model to save.");
   }
 
@@ -188,6 +268,9 @@ export async function saveApiKeySettings(input: ApiKeySettings) {
   }
   if (!isGeminiImageModel(imageModel)) {
     throw new Error("Select a supported Gemini image model.");
+  }
+  if (!isAiProviderId(aiProvider)) {
+    throw new Error("Select a supported AI text provider.");
   }
 
   const { root, envPath, envTempPath } = getEnvFilePaths();
@@ -200,14 +283,58 @@ export async function saveApiKeySettings(input: ApiKeySettings) {
     if (error?.code !== "ENOENT") throw error;
   }
 
+  // Migrate any existing plaintext secrets into the OS keychain when available.
+  const migration = await migrateEnvSecretsToKeychain(contents);
+  contents = migration.contents;
+
   if (youtubeApiKey) {
-    contents = setEnvValue(contents, "YOUTUBE_API_KEY", youtubeApiKey);
+    const storedInKeychain = await persistSecret("YOUTUBE_API_KEY", youtubeApiKey);
+    if (!storedInKeychain) {
+      contents = setEnvValue(contents, "YOUTUBE_API_KEY", youtubeApiKey);
+    }
   }
   if (geminiApiKey) {
-    contents = setEnvValue(contents, "GEMINI_API_KEY", geminiApiKey);
+    const storedInKeychain = await persistSecret("GEMINI_API_KEY", geminiApiKey);
+    if (!storedInKeychain) {
+      contents = setEnvValue(contents, "GEMINI_API_KEY", geminiApiKey);
+    }
   }
   contents = setEnvValue(contents, "GEMINI_TEXT_MODEL", textModel);
   contents = setEnvValue(contents, "GEMINI_IMAGE_MODEL", imageModel);
+  contents = setEnvValue(contents, "CUTROOM_AI_PROVIDER", aiProvider);
+
+  if (openrouterApiKey) {
+    const storedInKeychain = await persistSecret("OPENROUTER_API_KEY", openrouterApiKey);
+    if (!storedInKeychain) {
+      contents = setEnvValue(contents, "OPENROUTER_API_KEY", openrouterApiKey);
+    }
+  }
+  if (input.openrouterModel?.trim()) {
+    contents = setEnvValue(contents, "OPENROUTER_MODEL", input.openrouterModel.trim());
+  }
+  if (openaiApiKey) {
+    const storedInKeychain = await persistSecret("OPENAI_API_KEY", openaiApiKey);
+    if (!storedInKeychain) {
+      contents = setEnvValue(contents, "OPENAI_API_KEY", openaiApiKey);
+    }
+  }
+  if (input.openaiBaseUrl?.trim()) {
+    contents = setEnvValue(contents, "OPENAI_BASE_URL", input.openaiBaseUrl.trim());
+  }
+  if (input.openaiModel?.trim()) {
+    contents = setEnvValue(contents, "OPENAI_MODEL", input.openaiModel.trim());
+  }
+  if (input.ollamaBaseUrl?.trim()) {
+    contents = setEnvValue(contents, "OLLAMA_BASE_URL", input.ollamaBaseUrl.trim());
+  }
+  if (input.ollamaModel?.trim()) {
+    contents = setEnvValue(contents, "OLLAMA_MODEL", input.ollamaModel.trim());
+  }
+
+  const secretsBackend = await resolveSecretsBackend();
+  if (secretsBackend === "keychain") {
+    contents = stripSecretAssignments(contents);
+  }
 
   await writeFile(envTempPath, contents, { encoding: "utf8", mode: 0o600 });
   await rename(envTempPath, envPath);
@@ -216,6 +343,14 @@ export async function saveApiKeySettings(input: ApiKeySettings) {
   if (youtubeApiKey) process.env.YOUTUBE_API_KEY = youtubeApiKey;
   if (geminiApiKey) configureGeminiApiKey(geminiApiKey);
   configureGeminiModels(textModel, imageModel);
+  process.env.CUTROOM_AI_PROVIDER = aiProvider;
+  if (openrouterApiKey) process.env.OPENROUTER_API_KEY = openrouterApiKey;
+  if (input.openrouterModel?.trim()) process.env.OPENROUTER_MODEL = input.openrouterModel.trim();
+  if (openaiApiKey) process.env.OPENAI_API_KEY = openaiApiKey;
+  if (input.openaiBaseUrl?.trim()) process.env.OPENAI_BASE_URL = input.openaiBaseUrl.trim();
+  if (input.openaiModel?.trim()) process.env.OPENAI_MODEL = input.openaiModel.trim();
+  if (input.ollamaBaseUrl?.trim()) process.env.OLLAMA_BASE_URL = input.ollamaBaseUrl.trim();
+  if (input.ollamaModel?.trim()) process.env.OLLAMA_MODEL = input.ollamaModel.trim();
 
-  return getApiKeyStatus();
+  return getApiKeyStatusAsync();
 }

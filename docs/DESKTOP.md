@@ -144,14 +144,12 @@ This generates all required icon sizes in `src-tauri/icons/`. Use `cutroom-mark.
 
 ## Secret storage
 
-Today (L-105 / L-205 interim):
-- Sidecar writes `.env` under `CUTROOM_APP_DATA` (Tauri app-data dir; `LEDGER_APP_DATA` still accepted) with mode `0600`.
-- Web `npm run dev` still uses project-root `.env`.
-
-Next hardening (OS keychain):
-- Move YouTube/Gemini secrets into the platform keychain via a Tauri plugin.
-- Keep Settings status booleans only; never return secret material to the WebView.
-- Retain `.env` import/export for migration only.
+Today (L-409):
+- **Desktop (CUTROOM_APP_DATA set, macOS):** YouTube / Gemini / OpenRouter / OpenAI secrets live in the OS keychain (`security` generic passwords, service `app.cutroom.desktop`). Non-secret settings (models, provider id, base URLs) stay in app-data `.env` mode `0600`.
+- On first Settings save (or sidecar start), plaintext secret lines are migrated out of `.env` into the keychain.
+- **Web `npm run dev`:** still uses project-root `.env` unless `CUTROOM_USE_KEYCHAIN=1` (or `CUTROOM_SECRETS_BACKEND=keychain`).
+- Force `.env` only with `CUTROOM_SECRETS_BACKEND=env`.
+- Settings status returns `secretsBackend: "keychain" | "env"` booleans only — never secret material.
 
 ## Live-Key Acceptance Checklist
 

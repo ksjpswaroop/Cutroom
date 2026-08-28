@@ -25,12 +25,32 @@ interface ModelOption {
 interface ApiKeyStatus {
   youtube: boolean;
   gemini: boolean;
+  openrouter?: boolean;
+  openaiCompatible?: boolean;
+  ollama?: boolean;
+  aiProvider?: string;
+  aiProviderOptions?: { id: string; label: string }[];
+  secretsBackend?: "keychain" | "env";
   libraryPath?: string | null;
+  preferences?: {
+    assemblePreviewEnabled?: boolean;
+  };
+  assemblePreview?: {
+    assemblePreviewEnabled: boolean;
+    ffmpegAvailable: boolean;
+    ffmpegPath: string | null;
+    engine: string;
+  };
   models: {
     text: string;
     image: string;
     textOptions: ModelOption[];
     imageOptions: ModelOption[];
+    openrouterModel?: string;
+    openaiModel?: string;
+    ollamaModel?: string;
+    openaiBaseUrl?: string;
+    ollamaBaseUrl?: string;
   };
 }
 
@@ -122,17 +142,27 @@ export default function SettingsPage() {
     youtube: false,
     gemini: false,
     libraryPath: null,
+    aiProvider: "gemini",
     models: { text: "", image: "", textOptions: [], imageOptions: [] },
   });
   const [geminiTextModel, setGeminiTextModel] = useState("");
   const [geminiImageModel, setGeminiImageModel] = useState("");
+  const [aiProvider, setAiProvider] = useState("gemini");
+  const [openrouterModel, setOpenrouterModel] = useState("openrouter/auto");
+  const [openaiModel, setOpenaiModel] = useState("gpt-4o-mini");
+  const [openaiBaseUrl, setOpenaiBaseUrl] = useState("https://api.openai.com/v1");
+  const [ollamaModel, setOllamaModel] = useState("llama3.2");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://127.0.0.1:11434/v1");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingLibrary, setIsSavingLibrary] = useState(false);
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const youtubeKeyRef = useRef<HTMLInputElement>(null);
   const geminiKeyRef = useRef<HTMLInputElement>(null);
+  const openrouterKeyRef = useRef<HTMLInputElement>(null);
+  const openaiKeyRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -146,6 +176,12 @@ export default function SettingsPage() {
         setStatus(nextStatus);
         setGeminiTextModel(nextStatus.models.text);
         setGeminiImageModel(nextStatus.models.image);
+        setAiProvider(nextStatus.aiProvider || "gemini");
+        setOpenrouterModel(nextStatus.models.openrouterModel || "openrouter/auto");
+        setOpenaiModel(nextStatus.models.openaiModel || "gpt-4o-mini");
+        setOpenaiBaseUrl(nextStatus.models.openaiBaseUrl || "https://api.openai.com/v1");
+        setOllamaModel(nextStatus.models.ollamaModel || "llama3.2");
+        setOllamaBaseUrl(nextStatus.models.ollamaBaseUrl || "http://127.0.0.1:11434/v1");
       } catch (error: any) {
         setLoadError(error?.message || "Unable to load settings.");
       } finally {
@@ -222,17 +258,58 @@ export default function SettingsPage() {
     }
   };
 
+  const handleToggleAssemblePreview = async (enabled: boolean) => {
+    setIsSavingPreferences(true);
+    try {
+      const response = await apiRequest("PUT", "/api/settings/preferences", {
+        assemblePreviewEnabled: enabled,
+      }) as {
+        success: boolean;
+        preferences: { assemblePreviewEnabled: boolean };
+        assemblePreview: ApiKeyStatus["assemblePreview"];
+      };
+      setStatus((current) => ({
+        ...current,
+        preferences: response.preferences,
+        assemblePreview: response.assemblePreview,
+      }));
+      toast({
+        title: enabled ? "Assemble preview enabled" : "Assemble preview disabled",
+        description: enabled
+          ? "An optional Preview step appears after Package. Engine is assemble-only (FFmpeg)."
+          : "The Preview step is hidden again.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Could not update preferences",
+        description: error?.message || "Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const youtubeApiKey = youtubeKeyRef.current?.value.trim() || "";
     const geminiApiKey = geminiKeyRef.current?.value.trim() || "";
+    const openrouterApiKey = openrouterKeyRef.current?.value.trim() || "";
+    const openaiApiKey = openaiKeyRef.current?.value.trim() || "";
     const modelsChanged = geminiTextModel !== status.models.text
       || geminiImageModel !== status.models.image;
+    const providerChanged = aiProvider !== (status.aiProvider || "gemini")
+      || openrouterModel !== (status.models.openrouterModel || "openrouter/auto")
+      || openaiModel !== (status.models.openaiModel || "gpt-4o-mini")
+      || openaiBaseUrl !== (status.models.openaiBaseUrl || "https://api.openai.com/v1")
+      || ollamaModel !== (status.models.ollamaModel || "llama3.2")
+      || ollamaBaseUrl !== (status.models.ollamaBaseUrl || "http://127.0.0.1:11434/v1");
 
-    if (!youtubeApiKey && !geminiApiKey && !modelsChanged) {
+    if (!youtubeApiKey && !geminiApiKey && !openrouterApiKey && !openaiApiKey
+      && !modelsChanged && !providerChanged) {
       toast({
         title: "No changes to save",
-        description: "Enter a replacement key or choose a different model.",
+        description: "Enter a replacement key or choose a different provider/model.",
       });
       return;
     }
@@ -242,8 +319,16 @@ export default function SettingsPage() {
       const response = await apiRequest("PUT", "/api/settings/api-keys", {
         ...(youtubeApiKey ? { youtubeApiKey } : {}),
         ...(geminiApiKey ? { geminiApiKey } : {}),
+        ...(openrouterApiKey ? { openrouterApiKey } : {}),
+        ...(openaiApiKey ? { openaiApiKey } : {}),
         geminiTextModel,
         geminiImageModel,
+        aiProvider,
+        openrouterModel,
+        openaiModel,
+        openaiBaseUrl,
+        ollamaModel,
+        ollamaBaseUrl,
       }) as { success: boolean; status: ApiKeyStatus };
 
       setStatus((current) => ({
@@ -252,8 +337,16 @@ export default function SettingsPage() {
       }));
       setGeminiTextModel(response.status.models.text);
       setGeminiImageModel(response.status.models.image);
+      setAiProvider(response.status.aiProvider || "gemini");
+      setOpenrouterModel(response.status.models.openrouterModel || "openrouter/auto");
+      setOpenaiModel(response.status.models.openaiModel || "gpt-4o-mini");
+      setOpenaiBaseUrl(response.status.models.openaiBaseUrl || "https://api.openai.com/v1");
+      setOllamaModel(response.status.models.ollamaModel || "llama3.2");
+      setOllamaBaseUrl(response.status.models.ollamaBaseUrl || "http://127.0.0.1:11434/v1");
       if (youtubeKeyRef.current) youtubeKeyRef.current.value = "";
       if (geminiKeyRef.current) geminiKeyRef.current.value = "";
+      if (openrouterKeyRef.current) openrouterKeyRef.current.value = "";
+      if (openaiKeyRef.current) openaiKeyRef.current.value = "";
       toast({
         title: "API settings saved",
         description: "The local server is using the updated provider settings.",
@@ -286,10 +379,13 @@ export default function SettingsPage() {
         <ShieldCheck className="h-4 w-4" />
         <AlertTitle>Stored locally</AlertTitle>
         <AlertDescription>
-          Keys are written to the server&apos;s ignored <code>.env</code> file with
-          owner-only permissions. Workflow libraries are arranged by topic name on disk.
-          Saved API values are never returned to the browser. Settings changes are
-          accepted only from this machine.
+          Keys are written to the OS keychain when available (desktop), otherwise to the
+          server&apos;s ignored <code>.env</code> file with owner-only permissions. Workflow
+          libraries are arranged by topic name on disk. Saved API values are never returned
+          to the browser. Settings changes are accepted only from this machine.
+          {status.secretsBackend ? (
+            <> Current secrets backend: <code>{status.secretsBackend}</code>.</>
+          ) : null}
         </AlertDescription>
       </Alert>
 
@@ -340,6 +436,44 @@ export default function SettingsPage() {
                 Use app data instead
               </Button>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Assemble preview</CardTitle>
+          <CardDescription>
+            Optional step after Package. Default Off. Local FFmpeg template only — title card, Ken Burns thumbnail,
+            chapter cards, narration captions. No video-generator API keys.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/50 p-4">
+            <div>
+              <p className="text-sm font-medium">Enable /video assemble preview</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                FFmpeg: {status.assemblePreview?.ffmpegAvailable
+                  ? (status.assemblePreview.ffmpegPath || "available")
+                  : "not found on PATH"}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant={status.preferences?.assemblePreviewEnabled || status.assemblePreview?.assemblePreviewEnabled
+                ? "default"
+                : "outline"}
+              disabled={isSavingPreferences || Boolean(loadError)}
+              onClick={() => void handleToggleAssemblePreview(
+                !(status.preferences?.assemblePreviewEnabled || status.assemblePreview?.assemblePreviewEnabled),
+              )}
+              data-testid="button-toggle-assemble-preview"
+            >
+              {isSavingPreferences ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {(status.preferences?.assemblePreviewEnabled || status.assemblePreview?.assemblePreviewEnabled)
+                ? "On"
+                : "Off"}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -427,6 +561,138 @@ export default function SettingsPage() {
                   <ExternalLink className="h-3.5 w-3.5" />
                 </a>
               </KeyField>
+
+              <div className="space-y-3 rounded-lg border border-border bg-background/50 p-4">
+                <div>
+                  <Label htmlFor="ai-text-provider" className="text-base">
+                    Package JSON text provider
+                  </Label>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Used for Package JSON completion. Research, ideas, scripts, and thumbnails still use Gemini.
+                  </p>
+                </div>
+                <Select value={aiProvider} onValueChange={setAiProvider}>
+                  <SelectTrigger id="ai-text-provider" data-testid="select-ai-provider">
+                    <SelectValue placeholder="Choose a provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(status.aiProviderOptions || [
+                      { id: "gemini", label: "Gemini" },
+                      { id: "openrouter", label: "OpenRouter" },
+                      { id: "openai_compatible", label: "OpenAI-compatible" },
+                      { id: "ollama", label: "Ollama (local)" },
+                    ]).map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {aiProvider === "openrouter" && (
+                <KeyField
+                  id="openrouter-api-key"
+                  label="OpenRouter"
+                  description="Routes Package JSON through OpenRouter chat completions."
+                  configured={Boolean(status.openrouter)}
+                  inputRef={openrouterKeyRef}
+                  providerUrl="https://openrouter.ai/keys"
+                  providerLabel="Open OpenRouter keys"
+                >
+                  <div className="space-y-2 border-t border-border pt-4">
+                    <Label htmlFor="openrouter-model">Model</Label>
+                    <Input
+                      id="openrouter-model"
+                      value={openrouterModel}
+                      onChange={(event) => setOpenrouterModel(event.target.value)}
+                      placeholder="openrouter/auto"
+                      className="font-mono"
+                      data-testid="input-openrouter-model"
+                    />
+                  </div>
+                </KeyField>
+              )}
+
+              {aiProvider === "openai_compatible" && (
+                <KeyField
+                  id="openai-api-key"
+                  label="OpenAI-compatible"
+                  description="Any OpenAI chat-completions endpoint (OpenAI, Azure gateway, local proxy)."
+                  configured={Boolean(status.openaiCompatible)}
+                  inputRef={openaiKeyRef}
+                  providerUrl="https://platform.openai.com/api-keys"
+                  providerLabel="Open OpenAI API keys"
+                >
+                  <div className="grid gap-4 border-t border-border pt-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="openai-base-url">Base URL</Label>
+                      <Input
+                        id="openai-base-url"
+                        value={openaiBaseUrl}
+                        onChange={(event) => setOpenaiBaseUrl(event.target.value)}
+                        placeholder="https://api.openai.com/v1"
+                        className="font-mono"
+                        data-testid="input-openai-base-url"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="openai-model">Model</Label>
+                      <Input
+                        id="openai-model"
+                        value={openaiModel}
+                        onChange={(event) => setOpenaiModel(event.target.value)}
+                        placeholder="gpt-4o-mini"
+                        className="font-mono"
+                        data-testid="input-openai-model"
+                      />
+                    </div>
+                  </div>
+                </KeyField>
+              )}
+
+              {aiProvider === "ollama" && (
+                <div className="space-y-3 rounded-lg border border-border bg-background/50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <Label className="text-base">Ollama (local)</Label>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Uses the local OpenAI-compatible API. No cloud key required.
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="border-green-500/40 bg-green-500/10 text-green-500"
+                    >
+                      Local
+                    </Badge>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="ollama-base-url">Base URL</Label>
+                      <Input
+                        id="ollama-base-url"
+                        value={ollamaBaseUrl}
+                        onChange={(event) => setOllamaBaseUrl(event.target.value)}
+                        placeholder="http://127.0.0.1:11434/v1"
+                        className="font-mono"
+                        data-testid="input-ollama-base-url"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="ollama-model">Model</Label>
+                      <Input
+                        id="ollama-model"
+                        value={ollamaModel}
+                        onChange={(event) => setOllamaModel(event.target.value)}
+                        placeholder="llama3.2"
+                        className="font-mono"
+                        data-testid="input-ollama-model"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end pt-2">
                 <Button type="submit" disabled={isSaving || Boolean(loadError)} data-testid="button-save-api-settings">

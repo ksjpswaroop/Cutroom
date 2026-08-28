@@ -43,6 +43,11 @@ test("publish package request requires a topic", () => {
     scriptContent: null,
     evidenceContext: null,
   }).success, true);
+  assert.equal(publishPackageRequestSchema.safeParse({
+    topic: "Weeknight cooking",
+    observedTags: ["weeknight meals", "meal prep"],
+    observedTitleSamples: ["20 Minute Weeknight Dinners"],
+  }).success, true);
 });
 
 test("publish package output keeps evidence classes and Studio checklist", () => {
@@ -59,6 +64,13 @@ test("publish package output keeps evidence classes and Studio checklist", () =>
     ],
     description: "A".repeat(80),
     tags: ["cooking", "weeknight", "meal prep", "tutorial", "kitchen"],
+    tagEvidence: [
+      { tag: "cooking", evidenceClass: "observed" },
+      { tag: "weeknight", evidenceClass: "observed" },
+      { tag: "meal prep", evidenceClass: "inferred" },
+      { tag: "tutorial", evidenceClass: "inferred" },
+      { tag: "kitchen", evidenceClass: "inferred" },
+    ],
     chapters: [{ timestamp: "0:00", title: "Hook" }, { timestamp: "0:45", title: "Method" }],
     pinnedComment: "Which dinner do you want next?",
     endScreenSuggestions: ["Subscribe for next week's test"],
@@ -69,6 +81,7 @@ test("publish package output keeps evidence classes and Studio checklist", () =>
     ],
   });
   assert.equal(parsed.titles.length, 5);
+  assert.equal(parsed.tagEvidence?.[0]?.evidenceClass, "observed");
   assert.equal(parsed.measurementChecklist.every((item) => item.requiresStudio), true);
 });
 

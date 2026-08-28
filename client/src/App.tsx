@@ -15,6 +15,7 @@ import ScriptPage from "@/pages/script";
 import SettingsPage from "@/pages/settings";
 import ThumbnailPage from "@/pages/thumbnail";
 import PackagePage from "@/pages/package";
+import VideoPage from "@/pages/video";
 import { FirstRunBanner } from "@/components/first-run-banner";
 
 function Router() {
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/script" component={ScriptPage} />
       <Route path="/thumbnail" component={ThumbnailPage} />
       <Route path="/package" component={PackagePage} />
+      <Route path="/video" component={VideoPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

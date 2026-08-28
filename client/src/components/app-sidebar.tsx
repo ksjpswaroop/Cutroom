@@ -1,5 +1,5 @@
 import { useLocation, Link } from "wouter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -38,12 +38,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, FileText, Settings, Rocket, Check, ArrowRight, Image, History, Loader2, MoreHorizontal, Pencil, Trash2, Package } from "lucide-react";
+import { Search, FileText, Settings, Rocket, Check, ArrowRight, Image, History, Loader2, MoreHorizontal, Pencil, Trash2, Package, Clapperboard } from "lucide-react";
 import { useWorkflow } from "@/lib/workflow-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 
-const menuItems = [
+const baseMenuItems = [
   {
     title: "Research",
     url: "/",
@@ -70,19 +70,28 @@ const menuItems = [
   },
 ];
 
-const stepOrder = ["research", "script", "thumbnail", "package"] as const;
-type ShellWorkflowStep = typeof stepOrder[number];
+const videoMenuItem = {
+  title: "Assemble Preview",
+  url: "/video",
+  icon: Clapperboard,
+  step: "video" as const,
+};
+
+const baseStepOrder = ["research", "script", "thumbnail", "package"] as const;
+type ShellWorkflowStep = typeof baseStepOrder[number] | "video";
 const stepLabels: Record<ShellWorkflowStep, string> = {
   research: "Research",
   script: "Script",
   thumbnail: "Thumbnail",
   package: "Package",
+  video: "Preview",
 };
 
 function pathForStep(step: ShellWorkflowStep): string {
   if (step === "script") return "/script";
   if (step === "thumbnail") return "/thumbnail";
   if (step === "package") return "/package";
+  if (step === "video") return "/video";
   return "/";
 }
 
@@ -107,6 +116,26 @@ export function AppSidebar() {
   const [savingName, setSavingName] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [deletingWorkflow, setDeletingWorkflow] = useState(false);
+  const [previewEnabled, setPreviewEnabled] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await fetch("/api/preview/status", { cache: "no-store" });
+        if (!response.ok) return;
+        const body = await response.json() as { assemblePreviewEnabled?: boolean };
+        setPreviewEnabled(Boolean(body.assemblePreviewEnabled));
+      } catch {
+        setPreviewEnabled(false);
+      }
+    };
+    void load();
+  }, [location]);
+
+  const stepOrder = (previewEnabled
+    ? [...baseStepOrder, "video"]
+    : [...baseStepOrder]) as ShellWorkflowStep[];
+  const menuItems = previewEnabled ? [...baseMenuItems, videoMenuItem] : baseMenuItems;
 
   const handleStartWorkflow = () => {
     queryClient.removeQueries({ queryKey: ["/api/youtube/search"] });
