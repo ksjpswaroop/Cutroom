@@ -1,0 +1,124 @@
+export interface ProjectPackInput {
+  topic: string;
+  workflowId?: string | null;
+  researchQuery?: string;
+  script?: string;
+  thumbnailDataUrl?: string;
+  publishPackage?: unknown;
+  productionBrief?: unknown;
+}
+
+export interface ProjectPackResult {
+  mode: "desktop" | "browser";
+  path?: string;
+}
+
+function slugify(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "cutroom-project";
+}
+
+function downloadBlob(filename: string, content: string, type = "text/plain") {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+async function isTauri(): Promise<boolean> {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+async function resolveDefaultExportDirectory(workflowId?: string | null): Promise<string | undefined> {
+  if (!workflowId) return undefined;
+  try {
+    const response = await fetch(`/api/workflows/${encodeURIComponent(workflowId)}/folder`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!response.ok) return undefined;
+    const body = await response.json() as { path?: string };
+    if (!body.path) return undefined;
+    const stamp = new Date().toISOString().slice(0, 10);
+    return `${body.path}/exports/${stamp}`;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function exportProjectPack(input: ProjectPackInput): Promise<ProjectPackResult> {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const base = `${stamp}-${slugify(input.topic)}`;
+  const files: { filename: string; content: string; is_base64?: boolean }[] = [
+    {
+      filename: `${base}/README.md`,
+      content: `# ${input.topic}\n\nExported from Cutroom on ${new Date().toISOString()}.\n`,
+    },
+  ];
+
+  if (input.researchQuery) {
+    files.push({
+      filename: `${base}/research-query.txt`,
+      content: input.researchQuery,
+    });
+  }
+  if (input.script) {
+    files.push({
+      filename: `${base}/script.md`,
+      content: input.script,
+    });
+  }
+  if (input.publishPackage) {
+    files.push({
+      filename: `${base}/publish-package.json`,
+      content: JSON.stringify(input.publishPackage, null, 2),
+    });
+  }
+  if (input.productionBrief) {
+    files.push({
+      filename: `${base}/production-brief.json`,
+      content: JSON.stringify(input.productionBrief, null, 2),
+    });
+  }
+  if (input.thumbnailDataUrl?.startsWith("data:")) {
+    const match = input.thumbnailDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (match) {
+      const ext = match[1].includes("jpeg") ? "jpg" : "png";
+      files.push({
+        filename: `${base}/thumbnail.${ext}`,
+        content: match[2],
+        is_base64: true,
+      });
+    }
+  }
+
+  if (await isTauri()) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const defaultDirectory = await resolveDefaultExportDirectory(input.workflowId);
+    const path = await invoke<string>("cmd_export_project_pack", {
+      files,
+      defaultDirectory: defaultDirectory || null,
+    });
+    return { mode: "desktop", path };
+  }
+
+  for (const file of files) {
+    if (file.is_base64) {
+      const binary = atob(file.content);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes]);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = file.filename.split("/").pop() || "file.bin";
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } else {
+      downloadBlob(file.filename.split("/").pop() || "file.txt", file.content);
+    }
+  }
+  return { mode: "browser" };
+}

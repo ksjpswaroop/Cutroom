@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title description">
+  <title id="title">Cutroom</title>
+  <desc id="description">White 16:9 frame with a vertical splice cut inside a LinkedIn-blue rounded square</desc>
+  <defs>
+    <linearGradient id="surface" x1="22" y1="14" x2="108" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#378FE9"/>
+      <stop offset="1" stop-color="#0A66C2"/>
+    </linearGradient>
+    <linearGradient id="highlight" x1="64" y1="18" x2="64" y2="78" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#surface)"/>
+  <rect x="9" y="9" width="110" height="56" rx="27" fill="url(#highlight)"/>
+  <rect x="8.75" y="8.75" width="110.5" height="110.5" rx="27.25" fill="none" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="1.5"/>
+  <!-- 16:9 (84×47.25), 6px splice, right half +4px -->
+  <path fill="#FFFFFF" d="M30 40.5 H61 V87.75 H30 A8 8 0 0 1 22 79.75 V48.5 A8 8 0 0 1 30 40.5 Z"/>
+  <path fill="#FFFFFF" d="M67 44.5 H98 A8 8 0 0 1 106 52.5 V79.75 A8 8 0 0 1 98 87.75 H67 V44.5 Z"/>
+</svg>
