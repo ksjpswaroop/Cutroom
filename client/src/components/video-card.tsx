@@ -1,11 +1,15 @@
 import type { Video } from "@shared/schema";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, Calendar, ThumbsUp, MessageSquare } from "lucide-react";
 
 interface VideoCardProps {
   video: Video;
   onClick?: (video: Video) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelectedChange?: (video: Video, selected: boolean) => void;
 }
 
 function formatViews(views?: number): string {
@@ -49,13 +53,21 @@ function formatDuration(duration?: string): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-export function VideoCard({ video, onClick }: VideoCardProps) {
+export function VideoCard({
+  video,
+  onClick,
+  selectable = false,
+  selected = false,
+  onSelectedChange,
+}: VideoCardProps) {
   const isInteractive = Boolean(onClick);
   const openVideo = () => onClick?.(video);
 
   return (
     <Card
       className={`group overflow-hidden border-card-border bg-card transition-colors duration-300 ${
+        selected ? "border-primary/60 ring-1 ring-primary/30" : ""
+      } ${
         isInteractive
           ? "cursor-pointer hover:border-primary/50 hover-elevate focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           : ""
@@ -80,6 +92,20 @@ export function VideoCard({ video, onClick }: VideoCardProps) {
           className="w-full h-full object-cover"
           loading="lazy"
         />
+        {selectable && (
+          <div
+            className="absolute left-2 top-2 z-10 rounded-md bg-background/90 p-1 shadow-sm"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            <Checkbox
+              checked={selected}
+              onCheckedChange={(value) => onSelectedChange?.(video, value === true)}
+              aria-label={`Select ${video.title} for public caption or comment grounding`}
+              data-testid={`checkbox-video-select-${video.id}`}
+            />
+          </div>
+        )}
         {video.duration && (
           <Badge
             variant="secondary"

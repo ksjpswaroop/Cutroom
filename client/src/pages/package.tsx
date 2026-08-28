@@ -15,10 +15,45 @@ interface PublishPackage {
   hooks: { hook: string; rationale: string; evidenceClass: string }[];
   description: string;
   tags: string[];
+  tagEvidence?: { tag: string; evidenceClass: string }[];
   chapters: { timestamp: string; title: string }[];
   pinnedComment: string;
   endScreenSuggestions: string[];
   measurementChecklist: { metric: string; why: string; requiresStudio: true }[];
+}
+
+function evidenceBadgeLabel(evidenceClass: string): string {
+  return evidenceClass.replace(/_/g, " ");
+}
+
+function collectObservedSnapshotSignals(videos: { title?: string; tags?: string[] }[] | undefined) {
+  if (!videos?.length) {
+    return { observedTags: [] as string[], observedTitleSamples: [] as string[] };
+  }
+
+  const tagCounts = new Map<string, { label: string; count: number }>();
+  for (const video of videos) {
+    for (const tag of video.tags || []) {
+      const trimmed = tag.trim();
+      if (!trimmed) continue;
+      const key = trimmed.toLowerCase();
+      const existing = tagCounts.get(key);
+      if (existing) existing.count += 1;
+      else tagCounts.set(key, { label: trimmed.slice(0, 60), count: 1 });
+    }
+  }
+
+  const observedTags = Array.from(tagCounts.values())
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .slice(0, 20)
+    .map((entry) => entry.label);
+
+  const observedTitleSamples = videos
+    .map((video) => video.title?.trim() || "")
+    .filter(Boolean)
+    .slice(0, 20);
+
+  return { observedTags, observedTitleSamples };
 }
 
 interface ProductionBrief {
@@ -65,12 +100,17 @@ export default function PackagePage() {
         state.idea?.evidenceContext
         || state.cachedScript?.evidenceContext
         || undefined;
+      const { observedTags, observedTitleSamples } = collectObservedSnapshotSignals(
+        state.cachedResearch?.videos,
+      );
       const payload: Record<string, unknown> = {
         topic,
       };
       if (selectedIdea) payload.selectedIdea = selectedIdea;
       if (state.cachedScript?.script) payload.scriptContent = state.cachedScript.script;
       if (evidenceContext) payload.evidenceContext = evidenceContext;
+      if (observedTags.length) payload.observedTags = observedTags;
+      if (observedTitleSamples.length) payload.observedTitleSamples = observedTitleSamples;
 
       const body = await apiRequest("POST", "/api/package/generate", payload) as PublishPackage;
       setPublishPackage(body);
@@ -202,7 +242,7 @@ export default function PackagePage() {
                   <div key={item.title} className="rounded-md border border-border p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-medium">{item.title}</p>
-                      <Badge variant="outline">{item.evidenceClass}</Badge>
+                      <Badge variant="outline">{evidenceBadgeLabel(item.evidenceClass)}</Badge>
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">{item.rationale}</p>
                   </div>
@@ -214,7 +254,7 @@ export default function PackagePage() {
                   <div key={item.hook} className="rounded-md border border-border p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-medium">{item.hook}</p>
-                      <Badge variant="outline">{item.evidenceClass}</Badge>
+                      <Badge variant="outline">{evidenceBadgeLabel(item.evidenceClass)}</Badge>
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">{item.rationale}</p>
                   </div>
@@ -234,7 +274,18 @@ export default function PackagePage() {
               </div>
               <div>
                 <h3 className="font-semibold">Tags</h3>
-                <p className="mt-1 text-muted-foreground">{publishPackage.tags.join(", ")}</p>
+                {publishPackage.tagEvidence && publishPackage.tagEvidence.length > 0 ? (
+                  <ul className="mt-2 flex flex-wrap gap-2">
+                    {publishPackage.tagEvidence.map((item) => (
+                      <li key={`${item.tag}-${item.evidenceClass}`} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-sm">
+                        <span>{item.tag}</span>
+                        <Badge variant="outline" className="text-[10px]">{evidenceBadgeLabel(item.evidenceClass)}</Badge>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-muted-foreground">{publishPackage.tags.join(", ")}</p>
+                )}
               </div>
               <div>
                 <h3 className="font-semibold">Chapters</h3>

@@ -6,7 +6,8 @@ import {
   ChevronDown, ChevronUp, Target, Lightbulb, BarChart3,
   HelpCircle, Download, ArrowRight, ExternalLink, RefreshCw, Activity,
   Database, Hash, ListChecks, Sparkles, Compass, CheckCircle2, FlaskConical,
-  AlertCircle, KeyRound, WifiOff, Image as ImageIcon, PlayCircle, FileSpreadsheet, Table2
+  AlertCircle, KeyRound, WifiOff, Image as ImageIcon, PlayCircle, FileSpreadsheet, Table2,
+  Captions, MessagesSquare, Gauge
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,23 @@ import { calculateYouTubeAnalytics } from "@/lib/youtube-analytics";
 type ResearchInsights = ResearchInsightsResponse;
 
 type GroundedIdeaResponse = IdeaGenerationResponse;
+
+type CaptionExcerpt = { videoId: string; text: string };
+
+type AudienceQuestion = {
+  question: string;
+  sourceVideoId: string;
+  likeCount?: number;
+  publishedAt?: string;
+  authorDisplayName?: string;
+};
+
+type YouTubeQuotaUsage = {
+  used: number;
+  remaining: number;
+  limit: 10_000;
+  resetsAt: null;
+};
 
 type AppliedFilters = {
   uploadDate: UploadDateFilter;
@@ -156,6 +174,24 @@ function aiErrorTitle(category: ApiErrorCategory | null): string {
   }
 }
 
+function resolveDepthVideoIds(
+  videos: readonly Video[],
+  selectedIds: ReadonlySet<string>,
+  max: number,
+  preferCaptions = false,
+): string[] {
+  if (selectedIds.size > 0) {
+    return videos.filter((video) => selectedIds.has(video.id)).slice(0, max).map((video) => video.id);
+  }
+  if (preferCaptions) {
+    const withCaptions = videos.filter((video) => video.hasCaptions === true);
+    if (withCaptions.length > 0) {
+      return withCaptions.slice(0, max).map((video) => video.id);
+    }
+  }
+  return videos.slice(0, max).map((video) => video.id);
+}
+
 const CHART_COLORS = ["#0A66C2", "#378FE9", "#057642", "#915907", "#56687A"];
 const BAR_COLORS = ["#ef9a90", "#86a9d5", "#7fb7aa", "#a995c9", "#d2af6d", "#8fa5b8"];
 
@@ -262,6 +298,16 @@ export default function ResearchDashboard() {
   const [ideasLoading, setIdeasLoading] = useState(false);
   const [ideasError, setIdeasError] = useState<string | null>(null);
   const [ideasErrorCategory, setIdeasErrorCategory] = useState<ApiErrorCategory | null>(null);
+  const [depthSelectedIds, setDepthSelectedIds] = useState<Set<string>>(() => new Set());
+  const [captionExcerpts, setCaptionExcerpts] = useState<CaptionExcerpt[]>([]);
+  const [audienceQuestions, setAudienceQuestions] = useState<string[]>([]);
+  const [minedCommentQuestions, setMinedCommentQuestions] = useState<AudienceQuestion[]>([]);
+  const [captionsLoading, setCaptionsLoading] = useState(false);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [captionsStatus, setCaptionsStatus] = useState<string | null>(null);
+  const [commentsStatus, setCommentsStatus] = useState<string | null>(null);
+  const [depthError, setDepthError] = useState<string | null>(null);
+  const [youtubeQuota, setYoutubeQuota] = useState<YouTubeQuotaUsage | null>(null);
   const insightsFetchedRef = useRef<string>("");
   const ideasFetchedRef = useRef<string>("");
   const [cachedData, setCachedData] = useState<ResearchSearchResponse | null>(null);
@@ -384,6 +430,13 @@ export default function ResearchDashboard() {
     setExpandedQuestions(new Set());
     setEvidenceLedgerOpen(false);
     setMethodologyOpen(false);
+    setDepthSelectedIds(new Set());
+    setCaptionExcerpts([]);
+    setAudienceQuestions([]);
+    setMinedCommentQuestions([]);
+    setCaptionsStatus(null);
+    setCommentsStatus(null);
+    setDepthError(null);
     currentSnapshotRef.current = "";
     insightsFetchedRef.current = "";
     ideasFetchedRef.current = "";
@@ -469,7 +522,44 @@ export default function ResearchDashboard() {
     setIdeasError(null);
     setIdeasErrorCategory(null);
     ideasFetchedRef.current = "";
+    setDepthSelectedIds(new Set());
+    setCaptionExcerpts([]);
+    setAudienceQuestions([]);
+    setMinedCommentQuestions([]);
+    setCaptionsStatus(null);
+    setCommentsStatus(null);
+    setDepthError(null);
   }, [snapshotId, sourceData]);
+
+  const refreshYouTubeQuota = useCallback(async () => {
+    try {
+      const response = await fetch("/api/youtube/quota", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+      const usage = await response.json() as YouTubeQuotaUsage;
+      if (
+        typeof usage.used === "number"
+        && typeof usage.remaining === "number"
+        && usage.limit === 10_000
+        && usage.resetsAt === null
+      ) {
+        setYoutubeQuota(usage);
+      }
+    } catch {
+      // Soft meter is optional UI; never block Research on a quota read failure.
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshYouTubeQuota();
+  }, [refreshYouTubeQuota]);
+
+  useEffect(() => {
+    if (!data || isFetching) return;
+    void refreshYouTubeQuota();
+  }, [data, isFetching, refreshYouTubeQuota]);
 
   useEffect(() => () => {
     insightAbortRef.current?.abort();
@@ -519,6 +609,7 @@ export default function ResearchDashboard() {
           },
           enrichment: sourceData.enrichment,
           warnings: sourceData.warnings,
+          ...(captionExcerpts.length > 0 ? { captionExcerpts } : {}),
         }),
       });
       if (!response.ok) throw await readApiError(response);
@@ -547,7 +638,7 @@ export default function ResearchDashboard() {
     } finally {
       if (currentSnapshotRef.current === requestedSnapshotId) setInsightsLoading(false);
     }
-  }, [sourceData, submittedQuery, insightsLoading, isFetching, insightRequestKey]);
+  }, [sourceData, submittedQuery, insightsLoading, isFetching, insightRequestKey, captionExcerpts]);
 
   useEffect(() => {
     if (sourceData?.videos && sourceData.videos.length > 0 && !isFetching && !insights && !insightsLoading && !insightsError) {
@@ -592,6 +683,7 @@ export default function ResearchDashboard() {
             sourceVideoIds: sourceData.provenance.orderedVideoIds,
             evidenceClaims,
           },
+          ...(audienceQuestions.length > 0 ? { audienceQuestions } : {}),
         }),
       });
       if (!response.ok) throw await readApiError(response);
@@ -627,7 +719,7 @@ export default function ResearchDashboard() {
     } finally {
       if (currentSnapshotRef.current === requestedSnapshotId) setIdeasLoading(false);
     }
-  }, [sourceData, insights, ideasLoading, isFetching, snapshotId, submittedQuery, setIdeaData]);
+  }, [sourceData, insights, ideasLoading, isFetching, snapshotId, submittedQuery, setIdeaData, audienceQuestions]);
 
   useEffect(() => {
     if (insights && !insightsLoading && !ideasLoading && ideaPackages.length === 0 && !ideasError) {
@@ -654,6 +746,13 @@ export default function ResearchDashboard() {
       setIdeasError(null);
       setIdeasErrorCategory(null);
       setExportError(null);
+      setDepthSelectedIds(new Set());
+      setCaptionExcerpts([]);
+      setAudienceQuestions([]);
+      setMinedCommentQuestions([]);
+      setCaptionsStatus(null);
+      setCommentsStatus(null);
+      setDepthError(null);
       insightsFetchedRef.current = "";
       ideasFetchedRef.current = "";
       setAppliedFilters({ uploadDate, duration, sortBy });
@@ -673,6 +772,140 @@ export default function ResearchDashboard() {
     setSelectedVideo(video);
     setDialogOpen(true);
   };
+
+  const handleDepthVideoSelect = useCallback((video: Video, selected: boolean) => {
+    setDepthSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (selected) next.add(video.id);
+      else next.delete(video.id);
+      return next;
+    });
+  }, []);
+
+  const handleGroundCaptions = useCallback(async () => {
+    if (!sourceData?.videos.length || captionsLoading) return;
+    const videoIds = resolveDepthVideoIds(sourceData.videos, depthSelectedIds, 5, true);
+    if (videoIds.length === 0) {
+      setDepthError("Select at least one source video, or wait until the snapshot has videos.");
+      return;
+    }
+
+    setCaptionsLoading(true);
+    setDepthError(null);
+    setCaptionsStatus(null);
+    try {
+      const response = await fetch("/api/research/captions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ videoIds }),
+      });
+      if (!response.ok) throw await readApiError(response);
+      const result = await response.json() as {
+        captions?: Array<{
+          videoId: string;
+          text?: string;
+          skipReason?: string;
+        }>;
+      };
+      const excerpts = (result.captions || [])
+        .filter((item): item is { videoId: string; text: string } => Boolean(item.videoId && item.text?.trim()))
+        .map((item) => ({ videoId: item.videoId, text: item.text.trim() }));
+      const skipped = (result.captions || []).filter((item) => !item.text?.trim()).length;
+      setCaptionExcerpts(excerpts);
+      setCaptionsStatus(
+        excerpts.length > 0
+          ? `Loaded public caption text for ${excerpts.length} video${excerpts.length === 1 ? "" : "s"}${skipped > 0 ? ` (${skipped} skipped — public text unavailable)` : ""}. Regenerating Insights with observed caption excerpts only.`
+          : `No public caption text was available for the ${videoIds.length} requested video${videoIds.length === 1 ? "" : "s"}. Insights stay metadata-only.`,
+      );
+      await refreshYouTubeQuota();
+      if (excerpts.length > 0) {
+        insightAbortRef.current?.abort();
+        ideaAbortRef.current?.abort();
+        setInsights(null);
+        setInsightsError(null);
+        setInsightsErrorCategory(null);
+        setIdeaPackages([]);
+        setSelectedIdea(null);
+        setIdeasError(null);
+        setIdeasErrorCategory(null);
+        insightsFetchedRef.current = "";
+        ideasFetchedRef.current = "";
+      }
+    } catch (requestError) {
+      const normalizedError = requestError instanceof ResearchRequestError
+        ? requestError
+        : new ResearchRequestError({
+            message: requestError instanceof Error ? requestError.message : "Public captions could not be loaded.",
+            status: 0,
+            category: typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "unknown",
+            retryable: true,
+          });
+      setDepthError(normalizedError.suggestion || normalizedError.message);
+    } finally {
+      setCaptionsLoading(false);
+    }
+  }, [sourceData, captionsLoading, depthSelectedIds, refreshYouTubeQuota]);
+
+  const handleMineCommentQuestions = useCallback(async () => {
+    if (!sourceData?.videos.length || commentsLoading) return;
+    const videoIds = resolveDepthVideoIds(sourceData.videos, depthSelectedIds, 3);
+    if (videoIds.length === 0) {
+      setDepthError("Select at least one source video, or wait until the snapshot has videos.");
+      return;
+    }
+
+    setCommentsLoading(true);
+    setDepthError(null);
+    setCommentsStatus(null);
+    try {
+      const response = await fetch("/api/research/comment-questions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ videoIds }),
+      });
+      if (!response.ok) throw await readApiError(response);
+      const result = await response.json() as { questions?: AudienceQuestion[] };
+      const questions = (result.questions || [])
+        .filter((item) => item.question?.trim() && item.sourceVideoId)
+        .map((item) => ({
+          question: item.question.trim(),
+          sourceVideoId: item.sourceVideoId,
+          likeCount: item.likeCount,
+          publishedAt: item.publishedAt,
+          authorDisplayName: item.authorDisplayName,
+        }));
+      setMinedCommentQuestions(questions);
+      setAudienceQuestions(questions.map((item) => item.question));
+      setCommentsStatus(
+        questions.length > 0
+          ? `Mined ${questions.length} public comment question${questions.length === 1 ? "" : "s"} from ${videoIds.length} video${videoIds.length === 1 ? "" : "s"}. Regenerating Ideas with observed phrasing only — not Studio demand.`
+          : `No question-like public comments were found on the ${videoIds.length} requested video${videoIds.length === 1 ? "" : "s"}.`,
+      );
+      await refreshYouTubeQuota();
+      if (questions.length > 0 && insights) {
+        ideaAbortRef.current?.abort();
+        setIdeaPackages([]);
+        setSelectedIdea(null);
+        setIdeasError(null);
+        setIdeasErrorCategory(null);
+        ideasFetchedRef.current = "";
+      }
+    } catch (requestError) {
+      const normalizedError = requestError instanceof ResearchRequestError
+        ? requestError
+        : new ResearchRequestError({
+            message: requestError instanceof Error ? requestError.message : "Public comment questions could not be mined.",
+            status: 0,
+            category: typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "unknown",
+            retryable: true,
+          });
+      setDepthError(normalizedError.suggestion || normalizedError.message);
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, [sourceData, commentsLoading, depthSelectedIds, refreshYouTubeQuota, insights]);
 
   const toggleQuestion = (index: number) => {
     setExpandedQuestions(prev => {
@@ -837,6 +1070,13 @@ export default function ResearchDashboard() {
     setIdeasError(null);
     setIdeasErrorCategory(null);
     setExportError(null);
+    setDepthSelectedIds(new Set());
+    setCaptionExcerpts([]);
+    setAudienceQuestions([]);
+    setMinedCommentQuestions([]);
+    setCaptionsStatus(null);
+    setCommentsStatus(null);
+    setDepthError(null);
     insightsFetchedRef.current = "";
     ideasFetchedRef.current = "";
     await refetch();
@@ -932,11 +1172,23 @@ export default function ResearchDashboard() {
               onDurationChange={setDuration}
               onSortByChange={setSortBy}
             />
-            {hasSearched && (
-              <p className="text-xs text-muted-foreground">
-                Filters are drafts until you select Search. Changing them does not spend YouTube API quota.
-              </p>
-            )}
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              {hasSearched && (
+                <p className="text-xs text-muted-foreground">
+                  Filters are drafts until you select Search. Changing them does not spend YouTube API quota.
+                </p>
+              )}
+              {youtubeQuota && (
+                <p
+                  className="text-xs text-muted-foreground inline-flex items-center gap-1.5 sm:ml-auto"
+                  data-testid="text-youtube-quota"
+                  title="Soft in-process session meter for this local server. It does not sync with Google's daily project quota."
+                >
+                  <Gauge className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  Session YouTube units: {youtubeQuota.used.toLocaleString()} used · {youtubeQuota.remaining.toLocaleString()} remaining of {youtubeQuota.limit.toLocaleString()}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1464,21 +1716,98 @@ export default function ResearchDashboard() {
               )}
 
               <section className="scroll-mt-40 space-y-4 border-t border-border/70 pt-7" aria-labelledby="research-videos-heading">
-                <div>
-                  <h2 id="research-videos-heading" className="text-lg font-semibold flex items-center gap-2">
-                    <VideoIcon className="h-5 w-5" />
-                    Source Videos ({displayedVideos.length})
-                  </h2>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Every returned video used for the overview and AI analysis is shown below in YouTube result order.
-                  </p>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h2 id="research-videos-heading" className="text-lg font-semibold flex items-center gap-2">
+                      <VideoIcon className="h-5 w-5" />
+                      Source Videos ({displayedVideos.length})
+                    </h2>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Every returned video used for the overview and AI analysis is shown below in YouTube result order.
+                      Optional public caption and comment grounding uses selected videos, or the top snapshot rows when none are selected.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleGroundCaptions()}
+                      disabled={captionsLoading || commentsLoading || showLoading || displayedVideos.length === 0}
+                      data-testid="button-ground-captions"
+                    >
+                      {captionsLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Captions className="h-4 w-4 mr-2" />
+                      )}
+                      Ground with captions
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleMineCommentQuestions()}
+                      disabled={commentsLoading || captionsLoading || showLoading || displayedVideos.length === 0}
+                      data-testid="button-mine-comment-questions"
+                    >
+                      {commentsLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <MessagesSquare className="h-4 w-4 mr-2" />
+                      )}
+                      Mine comment questions
+                    </Button>
+                  </div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Captions: up to 5 videos (prefers public caption-available rows when nothing is selected).
+                  Comments: up to 3 videos. These are public Data API / timedtext signals only — not YouTube Studio metrics.
+                  {depthSelectedIds.size > 0
+                    ? ` ${depthSelectedIds.size} selected.`
+                    : " No selection — using top snapshot videos."}
+                </p>
+                {(depthError || captionsStatus || commentsStatus) && (
+                  <div className="space-y-2">
+                    {depthError && (
+                      <Alert data-testid="alert-research-depth-error">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Public grounding unavailable</AlertTitle>
+                        <AlertDescription>{depthError}</AlertDescription>
+                      </Alert>
+                    )}
+                    {captionsStatus && (
+                      <p className="text-xs text-muted-foreground" data-testid="text-captions-status" role="status">
+                        {captionsStatus}
+                        {captionExcerpts.length > 0 ? ` ${captionExcerpts.length} excerpt${captionExcerpts.length === 1 ? "" : "s"} ready for Insights.` : ""}
+                      </p>
+                    )}
+                    {commentsStatus && (
+                      <div className="space-y-2" data-testid="text-comments-status">
+                        <p className="text-xs text-muted-foreground" role="status">{commentsStatus}</p>
+                        {minedCommentQuestions.length > 0 && (
+                          <ul className="space-y-1.5 rounded-md border border-border/70 bg-muted/10 p-3 text-sm">
+                            {minedCommentQuestions.slice(0, 8).map((item) => (
+                              <li key={`${item.sourceVideoId}:${item.question}`} className="leading-snug">
+                                <span className="text-foreground">{item.question}</span>
+                                <span className="ml-2 font-mono text-[11px] text-muted-foreground">{item.sourceVideoId}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {displayedVideos.map((video) => (
                     <VideoCard
                       key={video.id}
                       video={video}
                       onClick={handleVideoClick}
+                      selectable
+                      selected={depthSelectedIds.has(video.id)}
+                      onSelectedChange={handleDepthVideoSelect}
                     />
                   ))}
                 </div>

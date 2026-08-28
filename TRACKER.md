@@ -90,7 +90,7 @@ Product strategy baseline: [docs/STRATEGY.md](docs/STRATEGY.md), [docs/RELEASE_P
 | L-403 | done | Multi-provider / OSS model plan (`docs/MODELS.md`) |
 | L-404 | done | Hermes backend decision (`docs/HERMES_DECISION.md`) — **do not replace Express** |
 | L-405 | done | Version progression plan (`docs/RELEASE_PLAN.md`) + roadmap link-up |
-| L-406 | todo | Extract `server/ai` provider interface (Gemini adapter only) |
+| L-406 | done | Extract `server/ai` provider interface (Gemini adapter only) |
 | L-407 | todo | OpenAI-compatible + Ollama + OpenRouter Settings wiring |
 | L-408 | todo | Local image provider spike (Ollama FLUX.2 Klein / Z-Image) |
 | L-409 | todo | OS keychain secrets migration (from app-data `.env`) |
@@ -137,7 +137,7 @@ Keep **Evidence ledger** as the Insights feature name. Do not add a fifth resear
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-601 | doing | Rebrand remaining Cutroom strings/assets/package/bundle/env/export names → `cutroom` / `Cutroom` |
+| L-601 | done | Rebrand remaining Cutroom strings/assets/package/bundle/env/export names → `cutroom` / `Cutroom` (Evidence ledger name preserved; legacy IndexedDB/key aliases intentionally kept) |
 | L-602 | doing | Cutroom app icon: 16:9 frame, vertical splice, right half offset; keep rounded-square blue shell (`client/public/cutroom-mark.svg` → Cutroom mark) |
 | L-603 | done | Preserve Insights **Evidence ledger** feature name through the rebrand |
 
@@ -154,16 +154,16 @@ Keep **Evidence ledger** as the Insights feature name. Do not add a fifth resear
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-608 | done | Caption-grounded Insights/Ideas via YouTube `captions.list` (same YouTube key; public captions only). Implements L-306 |
-| L-609 | done | Public comment question mine via `commentThreads.list`. Implements L-307 |
-| L-610 | done | Session YouTube quota meter (`search.list` = 100 units; show remaining/used) |
+| L-608 | done | Caption-grounded Insights/Ideas via YouTube `captions.list` (same YouTube key; public captions only). Implements L-306. Research UI: Ground with captions → `captionExcerpts` |
+| L-609 | done | Public comment question mine via `commentThreads.list`. Implements L-307. Research UI: Mine comment questions → `audienceQuestions` |
+| L-610 | done | Session YouTube quota meter (`search.list` = 100 units; show remaining/used). Research UI shows used/remaining near search |
 
 #### Packaging honesty
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-611 | todo | Publish Package: observed vs invented tags/titles (snapshot tags vs Gemini copy) |
-| L-612 | todo | Pace-accurate chapters from teleprompter WPM × section word counts |
+| L-611 | done | Publish Package: observed vs invented tags/titles (snapshot tags vs Gemini copy) |
+| L-612 | done | Pace-accurate chapters from teleprompter WPM × section word counts |
 
 #### Preview video (assemble only)
 

@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality, ThinkingLevel } from "@google/genai";
+import { Modality, ThinkingLevel } from "@google/genai";
 import type { IdeaGenerationRequest, IdeaGenerationResponse, ResearchInsightsRequest, ResearchInsightsResponse, ScriptEvidenceContext, ScriptInput, ScriptResult } from "@shared/schema";
 import {
   ideaGenerationOutputSchema,
@@ -10,16 +10,17 @@ import {
   TargetAudience,
   CreatorPersona,
 } from "@shared/schema";
+import { getTextProvider } from "./ai";
 import { normalizeProviderError, ProviderError } from "./provider-errors";
+import { getGeminiImageModelLabel } from "./gemini-models";
 import {
-  DEFAULT_GEMINI_IMAGE_MODEL,
-  DEFAULT_GEMINI_TEXT_MODEL,
-  getGeminiImageModelLabel,
-  isGeminiImageModel,
-  isGeminiTextModel,
-  type GeminiImageModel,
-  type GeminiTextModel,
-} from "./gemini-models";
+  configureGeminiApiKey,
+  configureGeminiModels,
+  getGeminiApiKey,
+  getGeminiClient,
+  getGeminiImageModel,
+  getGeminiTextModel,
+} from "./gemini-runtime";
 import {
   thumbnailSuggestionsSchema,
   type ThumbnailGenerationRequest,
@@ -39,33 +40,10 @@ import {
   type PublishPackageRequest,
   type ThumbnailCritiqueRequest,
 } from "./package-contract";
+import { finalizePublishPackage } from "./publish-package-enrichment";
 
-let geminiApiKey = process.env.GEMINI_API_KEY?.trim() || "";
-let geminiTextModel: GeminiTextModel = isGeminiTextModel(process.env.GEMINI_TEXT_MODEL || "")
-  ? process.env.GEMINI_TEXT_MODEL as GeminiTextModel
-  : DEFAULT_GEMINI_TEXT_MODEL;
-let geminiImageModel: GeminiImageModel = isGeminiImageModel(process.env.GEMINI_IMAGE_MODEL || "")
-  ? process.env.GEMINI_IMAGE_MODEL as GeminiImageModel
-  : DEFAULT_GEMINI_IMAGE_MODEL;
-
-if (!geminiApiKey) {
-  console.warn("Warning: GEMINI_API_KEY is not set. AI features will not work.");
-}
-
-let ai = new GoogleGenAI({ apiKey: geminiApiKey });
-
-export function configureGeminiApiKey(apiKey: string): void {
-  geminiApiKey = apiKey.trim();
-  process.env.GEMINI_API_KEY = geminiApiKey;
-  ai = new GoogleGenAI({ apiKey: geminiApiKey });
-}
-
-export function configureGeminiModels(textModel: GeminiTextModel, imageModel: GeminiImageModel): void {
-  geminiTextModel = textModel;
-  geminiImageModel = imageModel;
-  process.env.GEMINI_TEXT_MODEL = textModel;
-  process.env.GEMINI_IMAGE_MODEL = imageModel;
-}
+/** Public Settings/runtime API — backed by `server/gemini-runtime` + `server/ai` adapters. */
+export { configureGeminiApiKey, configureGeminiModels };
 
 function getFormatGuidelines(format: VideoFormat): string {
   switch (format) {
@@ -177,7 +155,7 @@ Treat this as a description of abstract traits only. Do not imitate a real perso
 }
 
 export async function generateScript(input: ScriptInput): Promise<ScriptResult> {
-  if (!geminiApiKey) {
+  if (!getGeminiApiKey()) {
     throw new Error("Gemini API key is not configured. Please set GEMINI_API_KEY environment variable.");
   }
 
@@ -250,8 +228,8 @@ Rules:
     let parsed: ReturnType<typeof parseScriptGenerationOutput> | undefined;
     let validationError = "";
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const response = await ai.models.generateContent({
-        model: geminiTextModel,
+      const response = await getGeminiClient().models.generateContent({
+        model: getGeminiTextModel(),
         contents: attempt === 0
           ? prompt
           : `${prompt}\n\nYour previous response failed validation: ${validationError}. Return a corrected strict JSON object only.`,
@@ -349,7 +327,7 @@ export function parseIdeaGenerationOutput(text: string, request: IdeaGenerationR
 export async function generateIdeas(
   request: IdeaGenerationRequest,
 ): Promise<IdeaGenerationResponse> {
-  if (!geminiApiKey) {
+  if (!getGeminiApiKey()) {
     throw new Error("Gemini API key is not configured. Please set GEMINI_API_KEY environment variable.");
   }
 
@@ -396,8 +374,8 @@ Evidence rules:
     let parsed: ReturnType<typeof parseIdeaGenerationOutput> | undefined;
     let validationError = "";
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const response = await ai.models.generateContent({
-        model: geminiTextModel,
+      const response = await getGeminiClient().models.generateContent({
+        model: getGeminiTextModel(),
         contents: attempt === 0
           ? prompt
           : `${prompt}\n\nYour previous response failed validation: ${validationError}. Return a corrected strict JSON object only.`,
@@ -500,7 +478,7 @@ export function parseResearchInsightsResponse(
 export async function generateResearchInsights(
   input: ResearchInsightsRequest,
 ): Promise<ResearchInsightsResponse> {
-  if (!geminiApiKey) {
+  if (!getGeminiApiKey()) {
     throw new ProviderError({
       message: "Gemini API key is not configured.",
       category: "missing_key",
@@ -640,12 +618,12 @@ Provide a detailed analysis in the following JSON format:
 Return ONLY valid JSON, no additional text or markdown.`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: geminiTextModel,
+    const response = await getGeminiClient().models.generateContent({
+      model: getGeminiTextModel(),
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        ...((geminiTextModel === "gemini-3.7-flash" || geminiTextModel === "gemini-3.1-pro-preview")
+        ...((getGeminiTextModel() === "gemini-3.7-flash" || getGeminiTextModel() === "gemini-3.1-pro-preview")
           ? { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
           : {}),
       },
@@ -670,7 +648,7 @@ export async function regenerateTitles(
   audience: TargetAudience,
   evidenceContext?: ScriptEvidenceContext,
 ): Promise<string[]> {
-  if (!geminiApiKey) {
+  if (!getGeminiApiKey()) {
     throw new Error("Gemini API key is not configured.");
   }
 
@@ -695,8 +673,8 @@ Return one strict JSON object with exactly one key, "titles", containing exactly
   try {
     let validationError = "";
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const response = await ai.models.generateContent({
-        model: geminiTextModel,
+      const response = await getGeminiClient().models.generateContent({
+        model: getGeminiTextModel(),
         contents: attempt === 0
           ? prompt
           : `${prompt}\n\nYour previous response failed validation: ${validationError}. Return corrected JSON only.`,
@@ -720,7 +698,7 @@ async function generateScriptRegeneration(
   prompt: string,
   evidenceContext?: ScriptEvidenceContext,
 ): Promise<ScriptRegenerationOutput> {
-  if (!geminiApiKey) {
+  if (!getGeminiApiKey()) {
     throw new ProviderError({
       message: "Gemini API key is not configured.",
       category: "missing_key",
@@ -738,8 +716,8 @@ async function generateScriptRegeneration(
   try {
     let validationError = "";
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const response = await ai.models.generateContent({
-        model: geminiTextModel,
+      const response = await getGeminiClient().models.generateContent({
+        model: getGeminiTextModel(),
         contents: attempt === 0
           ? prompt
           : `${prompt}\n\nYour previous response failed validation: ${validationError}. Return corrected JSON only.`,
@@ -921,7 +899,7 @@ export async function generateThumbnail(
   topic: string,
   config: ThumbnailConfig
 ): Promise<ThumbnailResult> {
-  if (!geminiApiKey) {
+  if (!getGeminiApiKey()) {
     throw new Error("Gemini API key is not configured. Add it in Settings before generating a thumbnail.");
   }
   const contentParts: any[] = [];
@@ -941,8 +919,8 @@ export async function generateThumbnail(
   contentParts.push({ text: prompt });
 
   try {
-    const response = await ai.models.generateContent({
-      model: geminiImageModel,
+    const response = await getGeminiClient().models.generateContent({
+      model: getGeminiImageModel(),
       contents: [{ role: "user", parts: contentParts }],
       config: {
         responseModalities: [Modality.TEXT, Modality.IMAGE],
@@ -961,7 +939,7 @@ export async function generateThumbnail(
       return {
         imageData,
         prompt,
-        model: `${getGeminiImageModelLabel(geminiImageModel)} (${geminiImageModel})`,
+        model: `${getGeminiImageModelLabel(getGeminiImageModel())} (${getGeminiImageModel()})`,
       };
     }
 
@@ -974,7 +952,7 @@ export async function generateThumbnail(
     });
   } catch (error: unknown) {
     const normalized = normalizeProviderError(error, "gemini");
-    console.error(`Thumbnail generation failed with ${geminiImageModel}:`, normalized.code);
+    console.error(`Thumbnail generation failed with ${getGeminiImageModel()}:`, normalized.code);
     throw normalized;
   }
 }
@@ -1029,14 +1007,14 @@ export function parseThumbnailSuggestions(value: string): string[] {
 export async function generateThumbnailSuggestions(
   request: ThumbnailSuggestionsRequest,
 ): Promise<string[]> {
-  if (!geminiApiKey) {
+  if (!getGeminiApiKey()) {
     throw new Error("Gemini API key is not configured");
   }
   const prompt = buildThumbnailSuggestionsPrompt(request);
 
   try {
-    const response = await ai.models.generateContent({
-      model: geminiTextModel,
+    const response = await getGeminiClient().models.generateContent({
+      model: getGeminiTextModel(),
       contents: prompt,
     });
 
@@ -1050,7 +1028,7 @@ export async function generateThumbnailSuggestions(
 
 
 export async function extractNarrationText(scriptContent: string): Promise<string> {
-  if (!geminiApiKey) {
+  if (!getGeminiApiKey()) {
     throw new Error("Gemini API key is not configured");
   }
 
@@ -1082,8 +1060,8 @@ If the input has no speakable content, return exactly: [No narration content]
 EXTRACTED NARRATION:`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: geminiTextModel,
+    const response = await getGeminiClient().models.generateContent({
+      model: getGeminiTextModel(),
       contents: [{ role: "user", parts: [{ text: prompt }] }],
     });
 
@@ -1123,8 +1101,14 @@ function parseJsonObject(text: string): unknown {
   return JSON.parse(payload);
 }
 
+/** JSON completion via `server/ai` (Gemini adapter by default). Used by Package; other flows still call Gemini directly. */
+async function completeJsonViaProvider(prompt: string): Promise<string> {
+  const result = await getTextProvider().completeJson({ prompt });
+  return result.text;
+}
+
 export async function generatePublishPackage(request: PublishPackageRequest) {
-  if (!geminiApiKey) {
+  if (!getGeminiApiKey()) {
     throw new ProviderError({
       message: "Gemini API key is not configured",
       category: "missing_key",
@@ -1141,6 +1125,14 @@ export async function generatePublishPackage(request: PublishPackageRequest) {
     ? JSON.stringify(request.evidenceContext, null, 2)
     : "No evidence context.";
   const scriptBlock = request.scriptContent?.slice(0, 12_000) || "No script supplied.";
+  const observedTags = (request.observedTags ?? []).map((tag) => tag.trim()).filter(Boolean);
+  const observedTitleSamples = (request.observedTitleSamples ?? []).map((title) => title.trim()).filter(Boolean);
+  const observedTagsBlock = observedTags.length
+    ? JSON.stringify(observedTags.slice(0, 30))
+    : "None supplied.";
+  const observedTitlesBlock = observedTitleSamples.length
+    ? JSON.stringify(observedTitleSamples.slice(0, 30))
+    : "None supplied.";
 
   const prompt = `You are Cutroom's publish-package composer for YouTube creators.
 Return strict JSON only matching this shape:
@@ -1149,6 +1141,7 @@ Return strict JSON only matching this shape:
   "hooks": [{"hook","rationale","evidenceClass":"observed"|"inferred"}] (3-8),
   "description": string,
   "tags": string[],
+  "tagEvidence": [{"tag","evidenceClass":"observed"|"inferred"}] (optional; same order as tags when present),
   "chapters": [{"timestamp","title"}],
   "pinnedComment": string,
   "endScreenSuggestions": string[],
@@ -1158,28 +1151,34 @@ Return strict JSON only matching this shape:
 Rules:
 - Never invent search volume, algorithm scores, or private Studio metrics as Observed facts.
 - Mark CTR/impressions/retention checklist items requiresStudio true.
-- Prefer Observed when citing titles/tags/patterns from supplied evidence; otherwise Inferred.
-- Titles max 100 chars. Hooks are spoken cold-opens under 280 chars.
+- Prefer Observed when citing titles/tags/patterns from supplied snapshot samples; otherwise Inferred.
+- Include observed snapshot tags in the tags array (list them first). Mark those tags observed in tagEvidence; other tags inferred.
+- Titles max 100 chars. Mark evidenceClass observed only when the title closely echoes an observedTitleSamples entry; else inferred.
+- Chapters: use script section order when a script is supplied; timestamps will be pace-validated server-side.
+- Hooks are spoken cold-opens under 280 chars.
 
 Topic: ${request.topic}
 Selected idea:
 ${ideaBlock}
 Evidence context:
 ${evidenceBlock}
+Observed snapshot tags:
+${observedTagsBlock}
+Observed snapshot title samples:
+${observedTitlesBlock}
 Script excerpt:
 ${scriptBlock}`;
 
   let validationError = "invalid";
   for (let attempt = 0; attempt < 2; attempt++) {
-    const response = await ai.models.generateContent({
-      model: geminiTextModel,
-      contents: attempt === 0
+    const text = await completeJsonViaProvider(
+      attempt === 0
         ? prompt
         : `${prompt}\n\nPrevious response failed validation: ${validationError}. Return corrected JSON only.`,
-      config: { responseMimeType: "application/json" },
-    });
+    );
     try {
-      return publishPackageOutputSchema.parse(parseJsonObject(response.text || ""));
+      const parsed = publishPackageOutputSchema.parse(parseJsonObject(text));
+      return finalizePublishPackage(parsed, request);
     } catch (error) {
       validationError = error instanceof Error ? error.message : "Invalid package response";
     }
@@ -1194,7 +1193,7 @@ ${scriptBlock}`;
 }
 
 export async function generateProductionBrief(request: ProductionBriefRequest) {
-  if (!geminiApiKey) {
+  if (!getGeminiApiKey()) {
     throw new ProviderError({
       message: "Gemini API key is not configured",
       category: "missing_key",
@@ -1220,8 +1219,8 @@ ${request.evidenceContext ? JSON.stringify(request.evidenceContext) : "none"}`;
 
   let validationError = "invalid";
   for (let attempt = 0; attempt < 2; attempt++) {
-    const response = await ai.models.generateContent({
-      model: geminiTextModel,
+    const response = await getGeminiClient().models.generateContent({
+      model: getGeminiTextModel(),
       contents: attempt === 0
         ? prompt
         : `${prompt}\n\nPrevious response failed validation: ${validationError}. Return corrected JSON only.`,
@@ -1243,7 +1242,7 @@ ${request.evidenceContext ? JSON.stringify(request.evidenceContext) : "none"}`;
 }
 
 export async function critiqueThumbnail(request: ThumbnailCritiqueRequest) {
-  if (!geminiApiKey) {
+  if (!getGeminiApiKey()) {
     throw new ProviderError({
       message: "Gemini API key is not configured",
       category: "missing_key",
@@ -1276,8 +1275,8 @@ Do not invent CTR predictions. Score visual craft only.`,
 
   let validationError = "invalid";
   for (let attempt = 0; attempt < 2; attempt++) {
-    const response = await ai.models.generateContent({
-      model: geminiTextModel,
+    const response = await getGeminiClient().models.generateContent({
+      model: getGeminiTextModel(),
       contents: [{ role: "user", parts }],
       config: { responseMimeType: "application/json" },
     });

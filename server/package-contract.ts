@@ -8,6 +8,10 @@ export const publishPackageRequestSchema = z.object({
   selectedIdea: ideaPackageSchema.nullish(),
   scriptContent: z.string().trim().max(80_000).nullish(),
   evidenceContext: scriptEvidenceContextSchema.nullish(),
+  /** Public tags observed on research snapshot videos (not invented). */
+  observedTags: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
+  /** Sample video titles from the research snapshot for observed title labeling. */
+  observedTitleSamples: z.array(z.string().trim().min(1).max(200)).max(30).optional(),
 }).strict();
 
 export const publishPackageOutputSchema = z.object({
@@ -22,7 +26,16 @@ export const publishPackageOutputSchema = z.object({
     evidenceClass: z.enum(["observed", "inferred"]),
   })).min(3).max(8),
   description: z.string().trim().min(40).max(5_000),
+  /** Tag strings for upload; observed snapshot tags are listed first when available. */
   tags: z.array(z.string().trim().min(1).max(60)).min(5).max(20),
+  /**
+   * Parallel evidence labels for `tags` (additive; keeps string[] tags for existing UI).
+   * Observed = present in snapshot sample; inferred = model-suggested.
+   */
+  tagEvidence: z.array(z.object({
+    tag: z.string().trim().min(1).max(60),
+    evidenceClass: z.enum(["observed", "inferred"]),
+  })).max(20).optional(),
   chapters: z.array(z.object({
     timestamp: z.string().trim().min(1).max(16),
     title: z.string().trim().min(1).max(120),
