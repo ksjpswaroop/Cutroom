@@ -14,7 +14,7 @@ src-tauri/target
 tmp-artifacts/
 previews/
 preferences.json
-workflows/
+/workflows/
 brand-kit.json
 content-calendar.json
 dist-release/
