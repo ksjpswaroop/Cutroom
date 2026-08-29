@@ -197,71 +197,89 @@ Keep **Evidence ledger** as the Insights feature name. Do not add a fifth resear
 
 ## Phase 7 — Production board v3
 
-Theme: ViMax-inspired **planning** (characters, storyboard, shots, camera tree) after Package. No renderer, no video-generator keys.
+Theme: One Board after Package; user picks **shoot myself**, **slides + voice**, or **cinematic**. No YouTube upload. ViMax = Script2Video blueprint in TypeScript, not a Python sidecar.
 
-Docs: [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) · [docs/V3_FEATURES.md](docs/V3_FEATURES.md). Version: **3.0** ([docs/RELEASE_PLAN.md](docs/RELEASE_PLAN.md)).
+Docs: [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) · [docs/V3_FEATURES.md](docs/V3_FEATURES.md). **3.0** = Board + shoot + slides; **3.1** = cinematic Shorts ([docs/RELEASE_PLAN.md](docs/RELEASE_PLAN.md)).
 
-Depends on v0.2 throughline (`L-604`–`L-607`). P0 schema work may land as a 1.x minor; 3.0 exit is P1 Board UI.
+Depends on v0.2 throughline (`L-604`–`L-607`). P0 schema work may land as a 1.x minor.
 
 Workflow after this phase:
 
 ```
 Research → Insights / Ideas → Script + Throughline → Thumbnail
-  → Package → Board (characters, storyboard, shots, camera tree)
-  → Preview (assemble only)
+  → Package → Board
+  → Render (shoot | slides | cinematic) → Review (no upload)
 ```
 
-Board is not a Research sidebar item.
+Board is not a Research sidebar item. Render stays on `/video`.
 
 ### Decision
 
 | ID | Status | Item |
 | --- | --- | --- |
 | L-701 | done | Write v3 roadmap + feature inventory (`docs/V3_ROADMAP.md`, `docs/V3_FEATURES.md`) |
-| L-702 | done | ViMax decision: borrow planning schemas; do not vendor Python/runtime/Veo |
+| L-702 | done | ViMax: borrow planning (+ cinematic stages in TS); do not vendor Python/Idea2Video/upload |
 
 ### P0 — Contracts (may ship in 1.x)
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-703 | todo | Extend production brief schema: `characters[]`, `storyboardPanels[]`, `camera` on shots |
-| L-704 | todo | Each panel/shot cites `evidenceClaimIds` or explicit `inferred` + limitations; copy active `snapshotId` |
-| L-705 | todo | Rebuild board/brief JSON after script edit or regeneration (same rule as L-607) |
-| L-706 | todo | Persist `{project}/brief/{characters,storyboard,shots,camera-tree}.json` in the library folder |
-| L-707 | todo | Contract tests for board schema (stale snapshot, unknown claims, camera-tree vs shots); no live providers |
-| L-708 | todo | Confirmation gate: board generate only after selected idea + script + matching snapshot |
+| L-703 | done | Extend production brief schema: `characters[]`, `storyboardPanels[]`, `camera` on shots |
+| L-704 | done | Each panel/shot cites `evidenceClaimIds` or explicit `inferred` + limitations; copy active `snapshotId` |
+| L-705 | done | Rebuild board/brief JSON after script edit or regeneration (same rule as L-607) |
+| L-706 | done | Persist `{project}/brief/{characters,storyboard,shots,camera-tree}.json` in the library folder |
+| L-707 | done | Contract tests for board schema (stale snapshot, unknown claims, camera-tree vs shots); no live providers |
+| L-708 | done | Confirmation gate: board generate only after selected idea + script + matching snapshot |
 
-### P1 — Board surface (3.0 exit)
+### P1 — Board surface (required for 3.0)
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-709 | todo | Board view after Package (tab or `/board`): scan-first storyboard strip |
-| L-710 | todo | Camera tree filter: `a-cam` \| `b-roll` \| `screen` \| `insert` (derived from shots, not a second model) |
-| L-711 | todo | Continuity rail from characters (wardrobe, recurring props, who is on camera) |
-| L-712 | todo | Board nodes must be a subset of throughline (L-604); no invented topics |
-| L-713 | todo | Checks: orphan shots; shots without claims; `requires_studio` as on-screen fact; pass / warn / fail before Preview |
+| L-709 | done | Board view after Package (tab or `/board`): scan-first storyboard strip |
+| L-710 | done | Camera tree filter: `a-cam` \| `b-roll` \| `screen` \| `insert` (derived from shots, not a second model) |
+| L-711 | done | Continuity rail from characters (wardrobe, recurring props, who is on camera) |
+| L-712 | done | Board nodes must be a subset of throughline (L-604); no invented topics |
+| L-713 | done | Checks: orphan shots; shots without claims; `requires_studio` as on-screen fact; pass / warn / fail before Render |
 
 ### P2 — Duration, clips, optional stills (3.0 if time, else 3.1)
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-714 | todo | Shot `durationHintSec` from teleprompter WPM × section words (L-612); label inferred if model-guessed |
-| L-715 | todo | Group shots into Shorts/clip briefs (implements a slice of L-313 / L-505) |
-| L-716 | todo | Optional storyboard stills via existing Gemini image model; Settings default **Off**; `evidenceClass: inferred` |
-| L-717 | todo | Best-of-k stills using thumbnail critique pattern (L-304); do not port ViMax selector Python |
+| L-714 | done | Shot `durationHintSec` from teleprompter WPM × section words (L-612); label inferred if model-guessed |
+| L-715 | done | Group shots into Shorts/clip briefs (implements a slice of L-313 / L-505) |
+| L-716 | done | Optional storyboard stills via existing Gemini image model; Settings default **Off**; `evidenceClass: inferred` |
+| L-717 | done | Best-of-k stills using thumbnail critique pattern (L-304); do not port ViMax selector Python |
+
+Stills pipeline stays Off: Settings `storyboardStillsEnabled` default false, so Gemini stills and best-of-k do not run. Selector Python was not ported.
 
 ### P3 — Companion export (optional, 3.1 ok)
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-718 | todo | Export pack includes `script.txt` + `brief/` JSON; optional ViMax-shaped `script2video/` tree behind a flag |
-| L-719 | todo | Document external Script2Video handoff; no video API keys in Cutroom Settings |
-| L-720 | todo | Companion flag default **Off** (same rule as L-508 Hermes); never product truth |
+| L-718 | done | Export pack includes `script.txt` + `brief/` JSON; optional ViMax-shaped `script2video/` tree behind a flag |
+| L-719 | done | Document optional external ViMax handoff; Cutroom Settings may hold TTS/clone/video keys, never `VIMAX_*` sidecar env |
+| L-720 | done | Companion flag default **Off** (same rule as L-508 Hermes); never spawn ViMax; never product truth |
+
+### P4 — Render modes (3.0 shoot + slides; 3.1 cinematic)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| L-721 | done | `/video` engine picker: `assemble` \| `shoot` \| `slides` \| `cinematic` (cinematic disabled until 3.1) |
+| L-722 | done | Slides+voice: mux TTS or clone onto assemble timeline → `{topic}/render.mp4` |
+| L-723 | done | Voice profile: consented user sample or TTS; never clone research-snapshot creators |
+| L-724 | done | Cinematic Shorts in TS: stills → Veo-class clips → FFmpeg concat + shared voice (3.1) |
+| L-725 | done | Quote estimated clip count/cost; confirm; default max 5 shots |
+| L-726 | done | Shared voice profile for slides and cinematic |
+| L-727 | done | No YouTube upload UI, OAuth publish scopes, or `videos.insert` in v3 |
+| L-728 | done | `render.mp4` in export pack; `evidenceClass: inferred` |
+
+Cinematic watch file is stills → FFmpeg concat + shared voice (quote/confirm, max 5). Veo-class clip generation is not invoked; output `usesVeo` is false. No `videos.insert`.
 
 ### Non-goals for v3
 
-- Vendor `HKUDS/ViMax`, `agent_runtime`, Idea2Video, Novel2Video
-- Veo / Runway / Kling / generative B-roll or talking-head
-- Timeline editor, Shorts auto-render farm, auto-upload
-- New Settings keys for video generators
+- Vendor `HKUDS/ViMax` `agent_runtime`, Idea2Video, Novel2Video, AutoCameo
+- OpenCut / timeline editor / unattended Shorts farm
+- YouTube auto-upload (`videos.insert`)
+- Cloning third-party voices or likenesses from the research grid
 - Replacing Express with a Python agent sidecar
+- Long-form cinematic (10+ min Veo) in 3.1 — Shorts-first only

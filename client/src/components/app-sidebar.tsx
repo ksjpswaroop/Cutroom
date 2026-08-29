@@ -1,5 +1,5 @@
 import { useLocation, Link } from "wouter";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -38,10 +38,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, FileText, Settings, Rocket, Check, ArrowRight, Image, History, Loader2, MoreHorizontal, Pencil, Trash2, Package, Clapperboard, CalendarDays } from "lucide-react";
+import { Search, FileText, Settings, Rocket, Check, ArrowRight, Image, History, Loader2, MoreHorizontal, Pencil, Trash2, Package, Clapperboard, CalendarDays, LayoutGrid } from "lucide-react";
 import { useWorkflow } from "@/lib/workflow-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
+import { cn } from "@/lib/utils";
 
 const baseMenuItems = [
   {
@@ -49,48 +50,61 @@ const baseMenuItems = [
     url: "/",
     icon: Search,
     step: "research" as const,
+    iconClass: "bg-sky-500/15 text-sky-600 dark:bg-sky-400/20 dark:text-sky-400",
   },
   {
     title: "Script Writer",
     url: "/script",
     icon: FileText,
     step: "script" as const,
+    iconClass: "bg-amber-500/15 text-amber-600 dark:bg-amber-400/20 dark:text-amber-400",
   },
   {
     title: "Thumbnail Creator",
     url: "/thumbnail",
     icon: Image,
     step: "thumbnail" as const,
+    iconClass: "bg-rose-500/15 text-rose-600 dark:bg-rose-400/20 dark:text-rose-400",
   },
   {
     title: "Publish Package",
     url: "/package",
     icon: Package,
     step: "package" as const,
+    iconClass: "bg-emerald-500/15 text-emerald-600 dark:bg-emerald-400/20 dark:text-emerald-400",
+  },
+  {
+    title: "Board",
+    url: "/board",
+    icon: LayoutGrid,
+    step: "board" as const,
+    iconClass: "bg-violet-500/15 text-violet-600 dark:bg-violet-400/20 dark:text-violet-400",
+  },
+  {
+    title: "Render",
+    url: "/video",
+    icon: Clapperboard,
+    step: "video" as const,
+    iconClass: "bg-cyan-500/15 text-cyan-600 dark:bg-cyan-400/20 dark:text-cyan-400",
   },
 ];
 
-const videoMenuItem = {
-  title: "Assemble Preview",
-  url: "/video",
-  icon: Clapperboard,
-  step: "video" as const,
-};
-
-const baseStepOrder = ["research", "script", "thumbnail", "package"] as const;
-type ShellWorkflowStep = typeof baseStepOrder[number] | "video";
+const baseStepOrder = ["research", "script", "thumbnail", "package", "board", "video"] as const;
+type ShellWorkflowStep = typeof baseStepOrder[number];
 const stepLabels: Record<ShellWorkflowStep, string> = {
   research: "Research",
   script: "Script",
   thumbnail: "Thumbnail",
   package: "Package",
-  video: "Preview",
+  board: "Board",
+  video: "Render",
 };
 
 function pathForStep(step: ShellWorkflowStep): string {
   if (step === "script") return "/script";
   if (step === "thumbnail") return "/thumbnail";
   if (step === "package") return "/package";
+  if (step === "board") return "/board";
   if (step === "video") return "/video";
   return "/";
 }
@@ -116,26 +130,9 @@ export function AppSidebar() {
   const [savingName, setSavingName] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [deletingWorkflow, setDeletingWorkflow] = useState(false);
-  const [previewEnabled, setPreviewEnabled] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const response = await fetch("/api/preview/status", { cache: "no-store" });
-        if (!response.ok) return;
-        const body = await response.json() as { assemblePreviewEnabled?: boolean };
-        setPreviewEnabled(Boolean(body.assemblePreviewEnabled));
-      } catch {
-        setPreviewEnabled(false);
-      }
-    };
-    void load();
-  }, [location]);
-
-  const stepOrder = (previewEnabled
-    ? [...baseStepOrder, "video"]
-    : [...baseStepOrder]) as ShellWorkflowStep[];
-  const menuItems = previewEnabled ? [...baseMenuItems, videoMenuItem] : baseMenuItems;
+  const stepOrder = baseStepOrder;
+  const menuItems = baseMenuItems;
 
   const handleStartWorkflow = () => {
     queryClient.removeQueries({ queryKey: ["/api/youtube/search"] });
@@ -229,7 +226,7 @@ export function AppSidebar() {
               Cutroom
             </span>
             <span className="text-xs text-muted-foreground truncate">
-              Research through package in one room
+              Research through a checkable video
             </span>
           </div>
         </Link>
@@ -304,8 +301,17 @@ export function AppSidebar() {
                         aria-current={isActive ? "page" : undefined}
                         data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
                       >
-                        <div className="flex items-center gap-2 flex-1">
-                          <item.icon className={isActive ? "text-primary" : ""} aria-hidden="true" />
+                        <div className="flex flex-1 items-center gap-2.5">
+                          <span
+                            className={cn(
+                              "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                              item.iconClass,
+                              isActive && "ring-1 ring-current/25",
+                            )}
+                            aria-hidden="true"
+                          >
+                            <item.icon className="size-4" />
+                          </span>
                           <span>{item.title}</span>
                         </div>
                         {state.isWorkflowActive && item.step && (
@@ -407,7 +413,15 @@ export function AppSidebar() {
                 aria-current={location === "/calendar" ? "page" : undefined}
                 data-testid="link-calendar"
               >
-                <CalendarDays className={location === "/calendar" ? "text-primary" : ""} aria-hidden="true" />
+                <span
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-md bg-violet-500/15 text-violet-600 dark:bg-violet-400/20 dark:text-violet-400",
+                    location === "/calendar" && "ring-1 ring-current/25",
+                  )}
+                  aria-hidden="true"
+                >
+                  <CalendarDays className="size-4" />
+                </span>
                 <span>Calendar</span>
               </Link>
             </SidebarMenuButton>
@@ -419,7 +433,15 @@ export function AppSidebar() {
                 aria-current={location === "/settings" ? "page" : undefined}
                 data-testid="link-settings"
               >
-                <Settings className={location === "/settings" ? "text-primary" : ""} aria-hidden="true" />
+                <span
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-500/15 text-slate-600 dark:bg-slate-400/20 dark:text-slate-300",
+                    location === "/settings" && "ring-1 ring-current/25",
+                  )}
+                  aria-hidden="true"
+                >
+                  <Settings className="size-4" />
+                </span>
                 <span>Settings</span>
               </Link>
             </SidebarMenuButton>

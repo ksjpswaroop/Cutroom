@@ -117,7 +117,7 @@ interface ThumbnailData {
   timestamp: number;
 }
 
-export type WorkflowStep = "research" | "script" | "thumbnail" | "package" | "video";
+export type WorkflowStep = "research" | "script" | "thumbnail" | "package" | "board" | "video";
 
 interface PackageData {
   topic: string;
@@ -126,11 +126,20 @@ interface PackageData {
   timestamp: number;
 }
 
+interface BoardData {
+  topic: string;
+  board: unknown;
+  timestamp: number;
+}
+
 interface PreviewData {
   path: string;
   relativePath: string;
   durationSec: number;
   timestamp: number;
+  engine?: string;
+  evidenceClass?: "inferred";
+  playKind?: "preview" | "render";
 }
 
 interface WorkflowState {
@@ -146,6 +155,7 @@ interface WorkflowState {
   cachedScript: ScriptData | null;
   cachedThumbnail: ThumbnailData | null;
   cachedPackage: PackageData | null;
+  cachedBoard: BoardData | null;
   cachedPreview: PreviewData | null;
   highlightSearchBox: boolean;
   highlightTrigger: number;
@@ -167,6 +177,7 @@ interface WorkflowContextType {
   setScriptData: (data: ScriptData) => void;
   setThumbnailData: (data: ThumbnailData) => void;
   setPackageData: (data: PackageData) => void;
+  setBoardData: (data: BoardData) => void;
   setPreviewData: (data: PreviewData) => void;
   clearScriptCache: () => void;
   goToStep: (step: WorkflowStep | "ideas") => void;
@@ -211,6 +222,7 @@ function createEmptyState(id: string | null = null, now: number | null = null): 
     cachedScript: null,
     cachedThumbnail: null,
     cachedPackage: null,
+    cachedBoard: null,
     cachedPreview: null,
     highlightSearchBox: false,
     highlightTrigger: 0,
@@ -223,18 +235,20 @@ function createWorkflowId(): string {
 }
 
 function normalizeStep(step: unknown): WorkflowStep {
-  return step === "script" || step === "thumbnail" || step === "package" || step === "video"
+  return step === "script" || step === "thumbnail" || step === "package" || step === "board" || step === "video"
     ? step
     : "research";
 }
 
 function restorableStep(state: WorkflowState): WorkflowStep {
   if (state.currentStep === "video" && (state.cachedPreview || state.cachedPackage)) return "video";
+  if (state.currentStep === "board" && state.cachedBoard) return "board";
   if (state.currentStep === "package" && state.cachedPackage) return "package";
   if (state.currentStep === "thumbnail" && state.cachedThumbnail) return "thumbnail";
   if (state.currentStep === "script" && state.cachedScript?.script) return "script";
   if (state.currentStep === "research" && state.cachedResearch) return "research";
   if (state.cachedPreview) return "video";
+  if (state.cachedBoard) return "board";
   if (state.cachedPackage?.publishPackage || state.cachedPackage?.productionBrief) return "package";
   if (state.cachedThumbnail?.thumbnailData) return "thumbnail";
   if (state.cachedScript?.script) return "script";
@@ -272,6 +286,7 @@ function normalizeState(value: Partial<WorkflowState>, fallbackId?: string): Wor
     cachedScript: value.cachedScript || null,
     cachedThumbnail: value.cachedThumbnail || null,
     cachedPackage: value.cachedPackage || null,
+    cachedBoard: value.cachedBoard || null,
     cachedPreview: value.cachedPreview || null,
     highlightSearchBox: false,
     highlightTrigger: 0,
@@ -320,6 +335,7 @@ function summaryFromState(state: WorkflowState): WorkflowHistorySummary | null {
     hasScript: Boolean(state.cachedScript?.script),
     hasThumbnail: Boolean(state.cachedThumbnail?.thumbnailData),
     hasPackage: Boolean(state.cachedPackage?.publishPackage || state.cachedPackage?.productionBrief),
+    hasBoard: Boolean(state.cachedBoard?.board),
   };
 }
 
@@ -573,16 +589,21 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
     return { ...createEmptyState(previous.id || createWorkflowId(), previous.createdAt || now), updatedAt: now, highlightTrigger: previous.highlightTrigger };
   }), []);
   const clearResearchCache = useCallback(() => setState((previous) => updateState(previous, { currentStep: "research", cachedResearch: null, idea: null })), []);
-  const setScriptData = useCallback((data: ScriptData) => setState((previous) => updateState(previous, { cachedScript: data, currentStep: "script" })), []);
-  const clearScriptCache = useCallback(() => setState((previous) => updateState(previous, { cachedScript: null })), []);
+  const setScriptData = useCallback((data: ScriptData) => setState((previous) => updateState(previous, {
+    cachedScript: data,
+    cachedBoard: null,
+    currentStep: "script",
+  })), []);
+  const clearScriptCache = useCallback(() => setState((previous) => updateState(previous, { cachedScript: null, cachedBoard: null })), []);
   const setThumbnailData = useCallback((data: ThumbnailData) => setState((previous) => updateState(previous, { cachedThumbnail: data, currentStep: "thumbnail" })), []);
   const setPackageData = useCallback((data: PackageData) => setState((previous) => updateState(previous, { cachedPackage: data, currentStep: "package" })), []);
+  const setBoardData = useCallback((data: BoardData) => setState((previous) => updateState(previous, { cachedBoard: data, currentStep: "board" })), []);
   const setPreviewData = useCallback((data: PreviewData) => setState((previous) => updateState(previous, { cachedPreview: data, currentStep: "video" })), []);
 
   return (
     <WorkflowContext.Provider value={{
       state, recentWorkflows, historyLoading, historyError, startWorkflow, openWorkflow, renameWorkflow, removeWorkflow,
-      endWorkflow, bindResearchQuery, setCachedResearch, setIdeaData, setScriptData, setThumbnailData, setPackageData, setPreviewData, clearScriptCache,
+      endWorkflow, bindResearchQuery, setCachedResearch, setIdeaData, setScriptData, setThumbnailData, setPackageData, setBoardData, setPreviewData, clearScriptCache,
       goToStep, clearWorkflow, clearHighlight, clearResearchCache,
     }}>
       {children}

@@ -1,6 +1,6 @@
 # Cutroom Feature Inventory
 
-Canonical list of product capabilities as of 2026-08-28. Status: **shipped** unless noted. Planned 3.0 Board: [V3_FEATURES.md](V3_FEATURES.md).
+Canonical list of product capabilities as of 2026-08-29. Status: **shipped** unless noted. v3 Board + render: [V3_FEATURES.md](V3_FEATURES.md).
 
 ## Workflow spine
 
@@ -21,7 +21,10 @@ Canonical list of product capabilities as of 2026-08-28. Status: **shipped** unl
 | Package | Publish package composer | Titles, hooks, description, tags, chapters, checklist |
 | Package | Production brief | From script |
 | Package | Project export pack | Desktop folder export via Tauri dialog when available |
-| Settings | API keys + model allowlist | Loopback-only; keys never returned |
+| Board | Production board | Storyboard, characters, camera tree; throughline subset checks |
+| Render | Mode picker | Shoot myself / slides + voice / cinematic Shorts / assemble preview |
+| Render | Shoot / slides / cinematic | Filmable pack or inferred `render.mp4`; quote-before-run for cinematic |
+| Settings | API keys + model allowlist | Loopback-only; keys never returned; optional TTS/clone; no upload |
 | Workflows | Multi-project history | IndexedDB / local; rename, delete, restore |
 
 ## Platform
@@ -44,20 +47,21 @@ Canonical list of product capabilities as of 2026-08-28. Status: **shipped** unl
 - Loopback bind default  
 - SynthID: Gemini images retain Google provenance; app does not fake “no watermark”
 
-## Planned — v3 Production Board
+## v3 Board + chosen render
 
-Not shipped. Full inventory: [V3_FEATURES.md](V3_FEATURES.md). Architecture: [V3_ROADMAP.md](V3_ROADMAP.md).
+Shipped (3.0 + 3.1 stills path). Inventory: [V3_FEATURES.md](V3_FEATURES.md). Architecture: [V3_ROADMAP.md](V3_ROADMAP.md).
 
 | Step | Capability | Notes |
 | --- | --- | --- |
-| Package / Board | Enriched brief | Characters, storyboard panels, camera on shots |
 | Board | Storyboard + camera tree | Subset of script throughline; no invented nodes |
-| Board | Continuity / talent | Wardrobe and props; inferred unless creator-supplied |
-| Board | Checks | Orphan shots; Studio-as-fact on screen |
-| Export | `brief/` in pack | Optional ViMax-shaped folder, flag Off |
-| Board | Concept stills | Existing image model only; inferred; Settings Off |
+| Render | Mode picker | Shoot myself / slides + voice / cinematic |
+| Render | Shoot myself | Export pack; user films; no generative video |
+| Render | Slides + voice | Assemble + consented clone or captions → `render.mp4` |
+| Render | Cinematic | Quote-before-run Shorts; stills concat; inferred |
+| Export | `brief/` + `render.mp4` | Generated pixels labeled inferred |
+| Settings | Optional TTS/clone/video keys | Loopback; **no** YouTube upload |
 
-v3 does **not** add Veo, Idea2Video, or an in-app renderer beyond v0.2 assemble-only preview.
+v3 does **not** add Idea2Video, OpenCut, YouTube publish, or a ViMax Python sidecar. v0.2 assemble preview remains the no-key template.
 
 ## Explicit non-features (deferred)
 
@@ -65,4 +69,5 @@ v3 does **not** add Veo, Idea2Video, or an in-app renderer beyond v0.2 assemble-
 - Fake algorithm / search-volume invention  
 - Bulk Studio upload automation against ToS  
 - Cloud team sync (not default)
-- Generative video runtimes (ViMax/Veo/Runway); planning schemas only in v3
+- YouTube auto-upload from Cutroom; cloning third-party voices from the research grid
+- Vendoring ViMax `agent_runtime` / Idea2Video

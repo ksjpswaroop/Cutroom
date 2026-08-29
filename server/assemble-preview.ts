@@ -248,7 +248,7 @@ async function writeThumbnailFile(dataUrl: string | undefined, dest: string): Pr
   await writeFile(dest, tinyPng);
 }
 
-function runFfmpeg(bin: string, args: string[], cwd: string): Promise<void> {
+export function runFfmpeg(bin: string, args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
     let stderr = "";
@@ -290,6 +290,47 @@ async function resolveOutputPath(input: AssemblePreviewRequest): Promise<{ absol
   };
 }
 
+export async function resolveRenderOutputPath(input: AssemblePreviewRequest): Promise<{ absolute: string; relative: string }> {
+  const preview = await resolveOutputPath(input);
+  return {
+    absolute: preview.absolute.replace(/preview\.mp4$/, "render.mp4"),
+    relative: preview.relative.replace(/preview\.mp4$/, "render.mp4"),
+  };
+}
+
+export async function muxAudioOntoVideo(options: {
+  ffmpeg: string;
+  videoPath: string;
+  audioPath: string | null;
+  outPath: string;
+  cwd: string;
+}): Promise<void> {
+  if (options.audioPath) {
+    await runFfmpeg(options.ffmpeg, [
+      "-y",
+      "-i", options.videoPath,
+      "-i", options.audioPath,
+      "-c:v", "copy",
+      "-c:a", "aac",
+      "-shortest",
+      "-movflags", "+faststart",
+      options.outPath,
+    ], options.cwd);
+    return;
+  }
+  await runFfmpeg(options.ffmpeg, [
+    "-y",
+    "-i", options.videoPath,
+    "-f", "lavfi",
+    "-i", "anullsrc=r=44100:cl=stereo",
+    "-c:v", "copy",
+    "-c:a", "aac",
+    "-shortest",
+    "-movflags", "+faststart",
+    options.outPath,
+  ], options.cwd);
+}
+
 function runPythonCard(args: string[]): Promise<void> {
   const script = path.join(path.dirname(fileURLToPath(import.meta.url)), "assemble-cards.py");
   return new Promise((resolve, reject) => {
@@ -325,10 +366,10 @@ async function writeCardPng(
  */
 export async function renderAssemblePreview(
   raw: AssemblePreviewRequest,
-  options: { includeDataUrl?: boolean } = {},
+  options: { includeDataUrl?: boolean; ignorePreference?: boolean } = {},
 ): Promise<AssemblePreviewResult> {
   const prefs = await readPreferences();
-  if (!prefs.assemblePreviewEnabled) {
+  if (!options.ignorePreference && !prefs.assemblePreviewEnabled) {
     throw Object.assign(new Error("Assemble preview is disabled in Settings."), { status: 400 });
   }
 
@@ -432,6 +473,20 @@ export async function resolveWorkflowPreviewPath(workflowId: string): Promise<st
   const topicDir = await getWorkflowTopicDirectory(workflowId);
   if (!topicDir) return null;
   const candidate = path.join(topicDir, "preview.mp4");
+  try {
+    await access(candidate, fsConstants.R_OK);
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+
+/** Absolute path to a workflow's render.mp4 (slides/cinematic), if present. */
+export async function resolveWorkflowRenderPath(workflowId: string): Promise<string | null> {
+  if (!workflowId.trim()) return null;
+  const topicDir = await getWorkflowTopicDirectory(workflowId);
+  if (!topicDir) return null;
+  const candidate = path.join(topicDir, "render.mp4");
   try {
     await access(candidate, fsConstants.R_OK);
     return candidate;

@@ -10,7 +10,7 @@ import {
   TargetAudience,
   CreatorPersona,
 } from "@shared/schema";
-import { getTextProvider } from "./ai";
+import { getTextProvider, resolveAiProviderId } from "./ai";
 import { normalizeProviderError, ProviderError } from "./provider-errors";
 import { getGeminiImageModelLabel } from "./gemini-models";
 import {
@@ -21,6 +21,7 @@ import {
   getGeminiImageModel,
   getGeminiTextModel,
 } from "./gemini-runtime";
+import { minimaxConfigured } from "./minimax";
 import {
   thumbnailSuggestionsSchema,
   type ThumbnailGenerationRequest,
@@ -40,6 +41,14 @@ import {
   type PublishPackageRequest,
   type ThumbnailCritiqueRequest,
 } from "./package-contract";
+import {
+  annotateShotDurations,
+  checkProductionBoard,
+  deriveCameraTree,
+  productionBoardOutputSchema,
+  type ProductionBoardOutput,
+  type ProductionBoardRequest,
+} from "@shared/board-contracts";
 import { finalizePublishPackage } from "./publish-package-enrichment";
 
 /** Public Settings/runtime API — backed by `server/gemini-runtime` + `server/ai` adapters. */
@@ -154,10 +163,52 @@ Treat this as a description of abstract traits only. Do not imitate a real perso
   return "";
 }
 
-export async function generateScript(input: ScriptInput): Promise<ScriptResult> {
-  if (!getGeminiApiKey()) {
+function requireTextBackend(asProviderError = false): void {
+  const id = resolveAiProviderId();
+  if (id === "gemini") {
+    if (getGeminiApiKey()) return;
+    if (asProviderError) {
+      throw new ProviderError({
+        message: "Gemini API key is not configured.",
+        category: "missing_key",
+        code: "GEMINI_MISSING_KEY",
+        status: 503,
+        retryable: false,
+      });
+    }
     throw new Error("Gemini API key is not configured. Please set GEMINI_API_KEY environment variable.");
   }
+  if (id === "minimax" && !minimaxConfigured()) {
+    throw new ProviderError({
+      message: "MiniMax API key is not configured.",
+      category: "missing_key",
+      code: "MINIMAX_MISSING_KEY",
+      status: 503,
+      retryable: false,
+    });
+  }
+}
+
+async function completeJsonText(prompt: string, options?: { thinking?: boolean }): Promise<string> {
+  if (resolveAiProviderId() === "gemini") {
+    const response = await getGeminiClient().models.generateContent({
+      model: getGeminiTextModel(),
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        ...(options?.thinking
+          && (getGeminiTextModel() === "gemini-3.7-flash" || getGeminiTextModel() === "gemini-3.1-pro-preview")
+          ? { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
+          : {}),
+      },
+    });
+    return response.text || "";
+  }
+  return (await getTextProvider().completeJson({ prompt })).text;
+}
+
+export async function generateScript(input: ScriptInput): Promise<ScriptResult> {
+  requireTextBackend();
 
   const formatGuidelines = getFormatGuidelines(input.format);
   const audienceGuidelines = getAudienceGuidelines(input.audience);
@@ -228,15 +279,11 @@ Rules:
     let parsed: ReturnType<typeof parseScriptGenerationOutput> | undefined;
     let validationError = "";
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const response = await getGeminiClient().models.generateContent({
-        model: getGeminiTextModel(),
-        contents: attempt === 0
-          ? prompt
-          : `${prompt}\n\nYour previous response failed validation: ${validationError}. Return a corrected strict JSON object only.`,
-        config: { responseMimeType: "application/json" },
-      });
+      const text = await completeJsonText(attempt === 0
+        ? prompt
+        : `${prompt}\n\nYour previous response failed validation: ${validationError}. Return a corrected strict JSON object only.`);
       try {
-        parsed = parseScriptGenerationOutput(response.text || "");
+        parsed = parseScriptGenerationOutput(text);
         if (input.evidenceContext) {
           const allowedClaimIds = new Set(input.evidenceContext.evidenceClaims.map((claim) => claim.id));
           const unsupported = parsed.structure
@@ -327,9 +374,7 @@ export function parseIdeaGenerationOutput(text: string, request: IdeaGenerationR
 export async function generateIdeas(
   request: IdeaGenerationRequest,
 ): Promise<IdeaGenerationResponse> {
-  if (!getGeminiApiKey()) {
-    throw new Error("Gemini API key is not configured. Please set GEMINI_API_KEY environment variable.");
-  }
+  requireTextBackend();
 
   validateEvidenceSourceIds(request.researchContext.evidenceClaims, request.researchContext.sourceVideoIds);
 
@@ -374,15 +419,11 @@ Evidence rules:
     let parsed: ReturnType<typeof parseIdeaGenerationOutput> | undefined;
     let validationError = "";
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const response = await getGeminiClient().models.generateContent({
-        model: getGeminiTextModel(),
-        contents: attempt === 0
-          ? prompt
-          : `${prompt}\n\nYour previous response failed validation: ${validationError}. Return a corrected strict JSON object only.`,
-        config: { responseMimeType: "application/json" },
-      });
+      const text = await completeJsonText(attempt === 0
+        ? prompt
+        : `${prompt}\n\nYour previous response failed validation: ${validationError}. Return a corrected strict JSON object only.`);
       try {
-        parsed = parseIdeaGenerationOutput(response.text || "", request);
+        parsed = parseIdeaGenerationOutput(text, request);
         break;
       } catch (error) {
         validationError = error instanceof Error ? error.message : "Invalid ideas response";
@@ -478,15 +519,7 @@ export function parseResearchInsightsResponse(
 export async function generateResearchInsights(
   input: ResearchInsightsRequest,
 ): Promise<ResearchInsightsResponse> {
-  if (!getGeminiApiKey()) {
-    throw new ProviderError({
-      message: "Gemini API key is not configured.",
-      category: "missing_key",
-      code: "GEMINI_MISSING_KEY",
-      status: 503,
-      retryable: false,
-    });
-  }
+  requireTextBackend(true);
 
   const { query, videos, snapshotId } = input;
   const evidence = videos.slice(0, 50).map((video) => ({
@@ -618,19 +651,10 @@ Provide a detailed analysis in the following JSON format:
 Return ONLY valid JSON, no additional text or markdown.`;
 
   try {
-    const response = await getGeminiClient().models.generateContent({
-      model: getGeminiTextModel(),
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        ...((getGeminiTextModel() === "gemini-3.7-flash" || getGeminiTextModel() === "gemini-3.1-pro-preview")
-          ? { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-          : {}),
-      },
-    });
+    const text = await completeJsonText(prompt, { thinking: true });
 
     return parseResearchInsightsResponse(
-      response.text || "",
+      text,
       snapshotId,
       evidence.length,
       new Date().toISOString(),
@@ -648,9 +672,7 @@ export async function regenerateTitles(
   audience: TargetAudience,
   evidenceContext?: ScriptEvidenceContext,
 ): Promise<string[]> {
-  if (!getGeminiApiKey()) {
-    throw new Error("Gemini API key is not configured.");
-  }
+  requireTextBackend();
 
   if (evidenceContext) {
     validateEvidenceSourceIds(evidenceContext.evidenceClaims, evidenceContext.sourceVideoIds);
@@ -673,15 +695,11 @@ Return one strict JSON object with exactly one key, "titles", containing exactly
   try {
     let validationError = "";
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const response = await getGeminiClient().models.generateContent({
-        model: getGeminiTextModel(),
-        contents: attempt === 0
-          ? prompt
-          : `${prompt}\n\nYour previous response failed validation: ${validationError}. Return corrected JSON only.`,
-        config: { responseMimeType: "application/json" },
-      });
+      const text = await completeJsonText(attempt === 0
+        ? prompt
+        : `${prompt}\n\nYour previous response failed validation: ${validationError}. Return corrected JSON only.`);
       try {
-        const parsed = titleRegenerationOutputSchema.parse(JSON.parse(response.text || ""));
+        const parsed = titleRegenerationOutputSchema.parse(JSON.parse(text));
         return parsed.titles;
       } catch (error) {
         validationError = error instanceof Error ? error.message : "Invalid title response";
@@ -698,15 +716,7 @@ async function generateScriptRegeneration(
   prompt: string,
   evidenceContext?: ScriptEvidenceContext,
 ): Promise<ScriptRegenerationOutput> {
-  if (!getGeminiApiKey()) {
-    throw new ProviderError({
-      message: "Gemini API key is not configured.",
-      category: "missing_key",
-      code: "GEMINI_MISSING_KEY",
-      status: 503,
-      retryable: false,
-    });
-  }
+  requireTextBackend(true);
 
   if (evidenceContext) {
     validateEvidenceSourceIds(evidenceContext.evidenceClaims, evidenceContext.sourceVideoIds);
@@ -716,15 +726,11 @@ async function generateScriptRegeneration(
   try {
     let validationError = "";
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const response = await getGeminiClient().models.generateContent({
-        model: getGeminiTextModel(),
-        contents: attempt === 0
-          ? prompt
-          : `${prompt}\n\nYour previous response failed validation: ${validationError}. Return corrected JSON only.`,
-        config: { responseMimeType: "application/json" },
-      });
+      const text = await completeJsonText(attempt === 0
+        ? prompt
+        : `${prompt}\n\nYour previous response failed validation: ${validationError}. Return corrected JSON only.`);
       try {
-        return parseScriptRegenerationOutput(response.text || "", evidenceContext);
+        return parseScriptRegenerationOutput(text, evidenceContext);
       } catch (error) {
         validationError = error instanceof Error ? error.message : "Invalid regeneration response";
       }
@@ -953,6 +959,10 @@ export function parseThumbnailSuggestions(value: string): string[] {
       cause,
     });
   }
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const record = parsed as { options?: unknown; suggestions?: unknown; titles?: unknown };
+    parsed = record.options || record.suggestions || record.titles;
+  }
 
   const result = thumbnailSuggestionsSchema.safeParse(parsed);
   if (!result.success) {
@@ -971,18 +981,12 @@ export function parseThumbnailSuggestions(value: string): string[] {
 export async function generateThumbnailSuggestions(
   request: ThumbnailSuggestionsRequest,
 ): Promise<string[]> {
-  if (!getGeminiApiKey()) {
-    throw new Error("Gemini API key is not configured");
-  }
+  requireTextBackend();
   const prompt = buildThumbnailSuggestionsPrompt(request);
 
   try {
-    const response = await getGeminiClient().models.generateContent({
-      model: getGeminiTextModel(),
-      contents: prompt,
-    });
-
-    return parseThumbnailSuggestions(response.text || "");
+    const text = await completeJsonText(prompt);
+    return parseThumbnailSuggestions(text);
   } catch (error: unknown) {
     const normalized = normalizeProviderError(error, "gemini");
     console.error("Thumbnail suggestions error:", normalized.code);
@@ -992,9 +996,7 @@ export async function generateThumbnailSuggestions(
 
 
 export async function extractNarrationText(scriptContent: string): Promise<string> {
-  if (!getGeminiApiKey()) {
-    throw new Error("Gemini API key is not configured");
-  }
+  requireTextBackend();
 
   const prompt = `You are a script-to-speech text extractor. Your job is to extract ONLY the words that a narrator would actually SAY OUT LOUD.
 
@@ -1024,12 +1026,24 @@ If the input has no speakable content, return exactly: [No narration content]
 EXTRACTED NARRATION:`;
 
   try {
-    const response = await getGeminiClient().models.generateContent({
-      model: getGeminiTextModel(),
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-    });
-
-    let text = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    let text = "";
+    if (resolveAiProviderId() === "gemini") {
+      const response = await getGeminiClient().models.generateContent({
+        model: getGeminiTextModel(),
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+      });
+      text = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    } else {
+      const result = await getTextProvider().completeJson({
+        prompt: `${prompt}\n\nReturn JSON {"narration":"<spoken words only>"}.`,
+      });
+      try {
+        const parsed = parseJsonObject(result.text) as { narration?: string };
+        text = typeof parsed.narration === "string" ? parsed.narration : result.text;
+      } catch {
+        text = result.text;
+      }
+    }
     text = text.trim();
 
     // If AI returned the special marker or empty, return empty string
@@ -1065,22 +1079,13 @@ function parseJsonObject(text: string): unknown {
   return JSON.parse(payload);
 }
 
-/** JSON completion via `server/ai` (Gemini adapter by default). Used by Package; other flows still call Gemini directly. */
+/** JSON completion via `server/ai` (Gemini by default; MiniMax when selected). */
 async function completeJsonViaProvider(prompt: string): Promise<string> {
-  const result = await getTextProvider().completeJson({ prompt });
-  return result.text;
+  return completeJsonText(prompt);
 }
 
 export async function generatePublishPackage(request: PublishPackageRequest) {
-  if (!getGeminiApiKey()) {
-    throw new ProviderError({
-      message: "Gemini API key is not configured",
-      category: "missing_key",
-      code: "GEMINI_MISSING_KEY",
-      status: 503,
-      retryable: false,
-    });
-  }
+  requireTextBackend(true);
 
   const ideaBlock = request.selectedIdea
     ? JSON.stringify(request.selectedIdea, null, 2)
@@ -1159,15 +1164,7 @@ ${scriptBlock}`;
 }
 
 export async function generateProductionBrief(request: ProductionBriefRequest) {
-  if (!getGeminiApiKey()) {
-    throw new ProviderError({
-      message: "Gemini API key is not configured",
-      category: "missing_key",
-      code: "GEMINI_MISSING_KEY",
-      status: 503,
-      retryable: false,
-    });
-  }
+  requireTextBackend(true);
 
   const prompt = `Create a production brief for filming a YouTube video.
 Return strict JSON:
@@ -1185,15 +1182,11 @@ ${request.evidenceContext ? JSON.stringify(request.evidenceContext) : "none"}`;
 
   let validationError = "invalid";
   for (let attempt = 0; attempt < 2; attempt++) {
-    const response = await getGeminiClient().models.generateContent({
-      model: getGeminiTextModel(),
-      contents: attempt === 0
-        ? prompt
-        : `${prompt}\n\nPrevious response failed validation: ${validationError}. Return corrected JSON only.`,
-      config: { responseMimeType: "application/json" },
-    });
+    const text = await completeJsonText(attempt === 0
+      ? prompt
+      : `${prompt}\n\nPrevious response failed validation: ${validationError}. Return corrected JSON only.`);
     try {
-      return productionBriefOutputSchema.parse(parseJsonObject(response.text || ""));
+      return productionBriefOutputSchema.parse(parseJsonObject(text));
     } catch (error) {
       validationError = error instanceof Error ? error.message : "Invalid brief response";
     }
@@ -1256,6 +1249,73 @@ Do not invent CTR predictions. Score visual craft only.`,
     message: `Gemini returned an invalid thumbnail critique after one repair attempt: ${validationError}`,
     category: "invalid_response",
     code: "CRITIQUE_INVALID_RESPONSE",
+    status: 502,
+    retryable: true,
+  });
+}
+
+export async function generateProductionBoard(request: ProductionBoardRequest): Promise<ProductionBoardOutput> {
+  requireTextBackend(true);
+
+  const snapshotId = request.evidenceContext.snapshotId;
+  const uniqueClaimIds = Array.from(new Set([
+    ...request.evidenceContext.evidenceClaims.map((claim) => claim.id),
+    ...request.selectedIdea.evidenceClaims.map((claim) => claim.id),
+  ]));
+  const sections = request.throughlineSections && request.throughlineSections.length > 0
+    ? request.throughlineSections
+    : ["Hook", "Body"];
+  const studioTexts = [...request.evidenceContext.evidenceClaims, ...request.selectedIdea.evidenceClaims]
+    .filter((claim) => claim.evidenceClass === "requires_studio")
+    .map((claim) => claim.claim);
+
+  const prompt = `Create a YouTube production board from the selected idea and script.
+Copy snapshotId "${snapshotId}" onto the board and every panel.
+Use ONLY these evidence claim IDs: ${JSON.stringify(uniqueClaimIds)}
+Panel section names MUST be from this throughline list: ${JSON.stringify(sections)}
+Do not invent topics. Do not state Studio-only metrics as on-screen facts.
+Return strict JSON:
+{
+  "snapshotId": "${snapshotId}",
+  "characters": [{"id","role","onScreen","wardrobeOrLook?","evidenceClass"}] (1-12),
+  "storyboardPanels": [{"id","section","visual","onScreenText?","evidenceClaimIds","evidenceClass","snapshotId","limitations?"}] (2-24),
+  "shots": [{"panelId","shot","camera","durationHintSec?","broll?","continuity?","evidenceClaimIds","evidenceClass"}] (3-40)
+}
+camera is one of a-cam, b-roll, screen, insert.
+Topic: ${request.topic}
+Idea: ${JSON.stringify(request.selectedIdea)}
+Script:
+${request.scriptContent.slice(0, 16_000)}`;
+
+  let validationError = "invalid";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const text = await completeJsonText(attempt === 0
+      ? prompt
+      : `${prompt}\n\nPrevious response failed validation: ${validationError}. Return corrected JSON only.`);
+    try {
+      const parsed = productionBoardOutputSchema.parse(parseJsonObject(text));
+      const board: ProductionBoardOutput = {
+        ...parsed,
+        cameraTree: parsed.cameraTree ?? deriveCameraTree(parsed.shots),
+      };
+      const check = checkProductionBoard(board, {
+        snapshotId,
+        allowedClaimIds: uniqueClaimIds,
+        throughlineSections: sections,
+        requiresStudioClaimTexts: studioTexts,
+      });
+      if (check.status === "fail") {
+        throw new Error(check.issues.map((issue) => issue.message).join(" "));
+      }
+      return annotateShotDurations(board, request.scriptContent);
+    } catch (error) {
+      validationError = error instanceof Error ? error.message : "Invalid board response";
+    }
+  }
+  throw new ProviderError({
+    message: `Gemini returned an invalid production board after one repair attempt: ${validationError}`,
+    category: "invalid_response",
+    code: "BOARD_INVALID_RESPONSE",
     status: 502,
     retryable: true,
   });

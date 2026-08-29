@@ -1,5 +1,7 @@
 import { createGeminiTextProvider } from "./gemini-adapter";
 import { createGeminiImageProvider } from "./gemini-image-adapter";
+import { createMiniMaxTextProvider } from "./minimax-adapter";
+import { createMiniMaxImageProvider } from "./minimax-image-adapter";
 import { createOllamaImageProvider } from "./ollama-image-adapter";
 import {
   createOllamaTextProvider,
@@ -7,6 +9,7 @@ import {
   createOpenRouterTextProvider,
 } from "./openai-compatible";
 import { createUnconfiguredTextProvider } from "./stubs";
+import { minimaxConfigured } from "../minimax";
 import {
   isAiImageProviderId,
   isAiProviderId,
@@ -35,7 +38,7 @@ export {
 
 /**
  * Resolve the active text provider.
- * Env: `CUTROOM_AI_PROVIDER` = gemini | openai_compatible | ollama | openrouter (default: gemini).
+ * Env: `CUTROOM_AI_PROVIDER` = gemini | openai_compatible | ollama | openrouter | minimax (default: gemini).
  */
 export function resolveAiProviderId(
   raw: string | undefined = process.env.CUTROOM_AI_PROVIDER,
@@ -55,6 +58,8 @@ export function getTextProvider(providerId?: AiProviderId): AiTextProvider {
       return createOllamaTextProvider();
     case "openrouter":
       return createOpenRouterTextProvider();
+    case "minimax":
+      return createMiniMaxTextProvider();
     default: {
       const _exhaustive: never = id;
       return _exhaustive;
@@ -64,13 +69,16 @@ export function getTextProvider(providerId?: AiProviderId): AiTextProvider {
 
 /**
  * Resolve the active image provider (L-408).
- * Env: `CUTROOM_IMAGE_PROVIDER` = gemini | ollama (default: gemini).
+ * Env: `CUTROOM_IMAGE_PROVIDER` = gemini | ollama | minimax (default: gemini,
+ * or MiniMax when the text provider is MiniMax).
  */
 export function resolveAiImageProviderId(
   raw: string | undefined = process.env.CUTROOM_IMAGE_PROVIDER,
 ): AiImageProviderId {
-  const value = (raw || "gemini").trim().toLowerCase();
-  return isAiImageProviderId(value) ? value : "gemini";
+  const value = (raw || "").trim().toLowerCase();
+  if (isAiImageProviderId(value)) return value;
+  if (resolveAiProviderId() === "minimax" && minimaxConfigured()) return "minimax";
+  return "gemini";
 }
 
 export function getImageProvider(providerId?: AiImageProviderId): AiImageProvider {
@@ -80,6 +88,8 @@ export function getImageProvider(providerId?: AiImageProviderId): AiImageProvide
       return createGeminiImageProvider();
     case "ollama":
       return createOllamaImageProvider();
+    case "minimax":
+      return createMiniMaxImageProvider();
     default: {
       const _exhaustive: never = id;
       return _exhaustive;

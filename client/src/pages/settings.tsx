@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -14,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { checkForDesktopUpdate, installDesktopUpdate } from "@/lib/desktop-updater";
@@ -30,18 +32,29 @@ interface ApiKeyStatus {
   openrouter?: boolean;
   openaiCompatible?: boolean;
   ollama?: boolean;
+  minimax?: boolean;
   aiProvider?: string;
   aiProviderOptions?: { id: string; label: string }[];
   secretsBackend?: "keychain" | "env";
   libraryPath?: string | null;
   preferences?: {
     assemblePreviewEnabled?: boolean;
+    storyboardStillsEnabled?: boolean;
+    vimaxCompanionEnabled?: boolean;
   };
   assemblePreview?: {
     assemblePreviewEnabled: boolean;
     ffmpegAvailable: boolean;
     ffmpegPath: string | null;
     engine: string;
+  };
+  render?: {
+    elevenLabs: boolean;
+    voiceConsent: boolean;
+    cinematicVeo: boolean;
+    cinematicVeoEnabled?: boolean;
+    hailuoH3?: boolean;
+    youtubeUpload: boolean;
   };
   brandKit?: {
     channelName: string;
@@ -62,6 +75,7 @@ interface ApiKeyStatus {
     ollamaModel?: string;
     openaiBaseUrl?: string;
     ollamaBaseUrl?: string;
+    minimaxTextModel?: string;
   };
 }
 
@@ -187,10 +201,16 @@ export default function SettingsPage() {
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [libraryDraft, setLibraryDraft] = useState("");
   const youtubeKeyRef = useRef<HTMLInputElement>(null);
   const geminiKeyRef = useRef<HTMLInputElement>(null);
   const openrouterKeyRef = useRef<HTMLInputElement>(null);
   const openaiKeyRef = useRef<HTMLInputElement>(null);
+  const minimaxKeyRef = useRef<HTMLInputElement>(null);
+  const elevenLabsKeyRef = useRef<HTMLInputElement>(null);
+  const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState("");
+  const [voiceConsent, setVoiceConsent] = useState(false);
+  const [cinematicVeoEnabled, setCinematicVeoEnabled] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -202,6 +222,7 @@ export default function SettingsPage() {
         if (!response.ok) throw new Error(data.error || "Unable to load settings.");
         const nextStatus = data as ApiKeyStatus;
         setStatus(nextStatus);
+        setLibraryDraft(nextStatus.libraryPath || "");
         setGeminiTextModel(nextStatus.models.text);
         setGeminiImageModel(nextStatus.models.image);
         setAiProvider(nextStatus.aiProvider || "gemini");
@@ -210,6 +231,8 @@ export default function SettingsPage() {
         setOpenaiBaseUrl(nextStatus.models.openaiBaseUrl || "https://api.openai.com/v1");
         setOllamaModel(nextStatus.models.ollamaModel || "llama3.2");
         setOllamaBaseUrl(nextStatus.models.ollamaBaseUrl || "http://127.0.0.1:11434/v1");
+        setVoiceConsent(Boolean(nextStatus.render?.voiceConsent));
+        setCinematicVeoEnabled(Boolean(nextStatus.render?.cinematicVeoEnabled ?? nextStatus.render?.cinematicVeo));
         if (nextStatus.brandKit) {
           setBrandChannel(nextStatus.brandKit.channelName || "");
           setBrandVoice(nextStatus.brandKit.voiceNotes || "");
@@ -235,37 +258,47 @@ export default function SettingsPage() {
     loadStatus();
   }, []);
 
-  const handleChooseLibrary = async () => {
+  const persistLibraryPath = async (nextPath: string) => {
+    const trimmed = nextPath.trim();
+    if (!trimmed) {
+      toast({
+        title: "Folder path required",
+        description: "Enter an absolute folder path, or clear the library to use app data.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!trimmed.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(trimmed)) {
+      toast({
+        title: "Absolute path required",
+        description: "Use a full path like /Users/you/Cutroom or C:\\Videos\\Cutroom.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSavingLibrary(true);
     try {
-      let nextPath: string | null = null;
-      if (await isTauri()) {
-        const { invoke } = await import("@tauri-apps/api/core");
-        nextPath = await invoke<string | null>("cmd_pick_library_folder");
-        if (!nextPath) {
-          toast({ title: "No folder selected", description: "Library location was left unchanged." });
-          return;
-        }
-      } else {
-        const typed = window.prompt(
-          "Enter an absolute folder path for Cutroom workflow data (arranged by topic name):",
-          status.libraryPath || "",
-        );
-        nextPath = typed?.trim() || null;
-        if (!nextPath) {
-          toast({ title: "No folder selected", description: "Library location was left unchanged." });
-          return;
-        }
-      }
-
-      const response = await apiRequest("PUT", "/api/settings/library", { path: nextPath }) as {
+      const response = await apiRequest("PUT", "/api/settings/library", { path: trimmed }) as {
         success: boolean;
         libraryPath: string | null;
       };
-      setStatus((current) => ({ ...current, libraryPath: response.libraryPath }));
+      const saved = typeof response.libraryPath === "string" ? response.libraryPath : trimmed;
+      // Re-read from server so the UI cannot drift from disk.
+      const statusRes = await fetch("/api/settings/status", { cache: "no-store", credentials: "include" });
+      const statusBody = await statusRes.json().catch(() => ({}));
+      const confirmed =
+        statusRes.ok && typeof statusBody.libraryPath === "string"
+          ? statusBody.libraryPath
+          : saved;
+      setStatus((current) => ({ ...current, libraryPath: confirmed }));
+      setLibraryDraft(confirmed);
+      const unchanged = confirmed === status.libraryPath;
       toast({
-        title: "Library folder saved",
-        description: "New workflows will be stored in topic-named folders inside this location.",
+        title: unchanged ? "Library folder unchanged" : "Library folder saved",
+        description: unchanged
+          ? `Still using ${confirmed}. New workflows continue there.`
+          : `Now saving new workflows under ${confirmed}. Existing workflows stay in their previous folders.`,
       });
     } catch (error: any) {
       toast({
@@ -278,6 +311,30 @@ export default function SettingsPage() {
     }
   };
 
+  const handleChooseLibrary = async () => {
+    if (await isTauri()) {
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        const nextPath = await invoke<string | null>("cmd_pick_library_folder");
+        if (!nextPath) {
+          toast({ title: "No folder selected", description: "Library location was left unchanged." });
+          return;
+        }
+        setLibraryDraft(nextPath);
+        await persistLibraryPath(nextPath);
+      } catch (error: any) {
+        toast({
+          title: "Could not open folder picker",
+          description: error?.message || "Try entering the path manually below.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    await persistLibraryPath(libraryDraft || status.libraryPath || "");
+  };
+
   const handleClearLibrary = async () => {
     setIsSavingLibrary(true);
     try {
@@ -286,6 +343,7 @@ export default function SettingsPage() {
         libraryPath: string | null;
       };
       setStatus((current) => ({ ...current, libraryPath: response.libraryPath }));
+      setLibraryDraft("");
       toast({
         title: "Using app data storage",
         description: "Workflows will store under the Cutroom app-data directory until you choose a library again.",
@@ -301,14 +359,17 @@ export default function SettingsPage() {
     }
   };
 
-  const handleToggleAssemblePreview = async (enabled: boolean) => {
+  const handleTogglePreference = async (
+    key: "assemblePreviewEnabled" | "storyboardStillsEnabled" | "vimaxCompanionEnabled",
+    enabled: boolean,
+  ) => {
     setIsSavingPreferences(true);
     try {
       const response = await apiRequest("PUT", "/api/settings/preferences", {
-        assemblePreviewEnabled: enabled,
+        [key]: enabled,
       }) as {
         success: boolean;
-        preferences: { assemblePreviewEnabled: boolean };
+        preferences: ApiKeyStatus["preferences"];
         assemblePreview: ApiKeyStatus["assemblePreview"];
       };
       setStatus((current) => ({
@@ -316,11 +377,24 @@ export default function SettingsPage() {
         preferences: response.preferences,
         assemblePreview: response.assemblePreview,
       }));
+      const labels = {
+        assemblePreviewEnabled: enabled
+          ? "Assemble preview enabled"
+          : "Assemble preview disabled",
+        storyboardStillsEnabled: enabled ? "Storyboard stills enabled" : "Storyboard stills remain Off",
+        vimaxCompanionEnabled: enabled
+          ? "Companion folder export enabled (still does not spawn ViMax)"
+          : "ViMax companion remains Off",
+      };
       toast({
-        title: enabled ? "Assemble preview enabled" : "Assemble preview disabled",
-        description: enabled
-          ? "An optional Preview step appears after Package. Engine is assemble-only (FFmpeg)."
-          : "The Preview step is hidden again.",
+        title: labels[key],
+        description: key === "assemblePreviewEnabled"
+          ? (enabled
+            ? "Assemble engine on Render writes preview.mp4 (FFmpeg only)."
+            : "Assemble engine stays hidden unless you turn it on.")
+          : key === "storyboardStillsEnabled"
+            ? "Stills are inferred when generated. Default Off."
+            : "Cutroom never launches ViMax. Settings never store VIMAX_* sidecar keys.",
       });
     } catch (error: any) {
       toast({
@@ -331,6 +405,10 @@ export default function SettingsPage() {
     } finally {
       setIsSavingPreferences(false);
     }
+  };
+
+  const handleToggleAssemblePreview = async (enabled: boolean) => {
+    await handleTogglePreference("assemblePreviewEnabled", enabled);
   };
 
   const handleSaveBrandKit = async () => {
@@ -371,6 +449,8 @@ export default function SettingsPage() {
     const geminiApiKey = geminiKeyRef.current?.value.trim() || "";
     const openrouterApiKey = openrouterKeyRef.current?.value.trim() || "";
     const openaiApiKey = openaiKeyRef.current?.value.trim() || "";
+    const minimaxApiKey = minimaxKeyRef.current?.value.trim() || "";
+    const elevenLabsApiKey = elevenLabsKeyRef.current?.value.trim() || "";
     const modelsChanged = geminiTextModel !== status.models.text
       || geminiImageModel !== status.models.image;
     const providerChanged = aiProvider !== (status.aiProvider || "gemini")
@@ -378,9 +458,12 @@ export default function SettingsPage() {
       || openaiModel !== (status.models.openaiModel || "gpt-4o-mini")
       || openaiBaseUrl !== (status.models.openaiBaseUrl || "https://api.openai.com/v1")
       || ollamaModel !== (status.models.ollamaModel || "llama3.2")
-      || ollamaBaseUrl !== (status.models.ollamaBaseUrl || "http://127.0.0.1:11434/v1");
+      || ollamaBaseUrl !== (status.models.ollamaBaseUrl || "http://127.0.0.1:11434/v1")
+      || elevenLabsVoiceId.trim() !== ""
+      || voiceConsent !== Boolean(status.render?.voiceConsent)
+      || cinematicVeoEnabled !== Boolean(status.render?.cinematicVeoEnabled ?? status.render?.cinematicVeo);
 
-    if (!youtubeApiKey && !geminiApiKey && !openrouterApiKey && !openaiApiKey
+    if (!youtubeApiKey && !geminiApiKey && !openrouterApiKey && !openaiApiKey && !minimaxApiKey && !elevenLabsApiKey
       && !modelsChanged && !providerChanged) {
       toast({
         title: "No changes to save",
@@ -396,6 +479,11 @@ export default function SettingsPage() {
         ...(geminiApiKey ? { geminiApiKey } : {}),
         ...(openrouterApiKey ? { openrouterApiKey } : {}),
         ...(openaiApiKey ? { openaiApiKey } : {}),
+        ...(minimaxApiKey ? { minimaxApiKey } : {}),
+        ...(elevenLabsApiKey ? { elevenLabsApiKey } : {}),
+        ...(elevenLabsVoiceId.trim() ? { elevenLabsVoiceId: elevenLabsVoiceId.trim() } : {}),
+        voiceConsent,
+        cinematicVeoEnabled,
         geminiTextModel,
         geminiImageModel,
         aiProvider,
@@ -422,6 +510,10 @@ export default function SettingsPage() {
       if (geminiKeyRef.current) geminiKeyRef.current.value = "";
       if (openrouterKeyRef.current) openrouterKeyRef.current.value = "";
       if (openaiKeyRef.current) openaiKeyRef.current.value = "";
+      if (minimaxKeyRef.current) minimaxKeyRef.current.value = "";
+      if (elevenLabsKeyRef.current) elevenLabsKeyRef.current.value = "";
+      setVoiceConsent(Boolean(response.status.render?.voiceConsent));
+      setCinematicVeoEnabled(Boolean(response.status.render?.cinematicVeoEnabled ?? response.status.render?.cinematicVeo));
       toast({
         title: "API settings saved",
         description: "The local server is using the updated provider settings.",
@@ -471,6 +563,15 @@ export default function SettingsPage() {
         </Alert>
       )}
 
+      <Tabs defaultValue="library" className="w-full">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4">
+          <TabsTrigger value="library" data-testid="tab-settings-library">Library</TabsTrigger>
+          <TabsTrigger value="api" data-testid="tab-settings-api">API</TabsTrigger>
+          <TabsTrigger value="brand" data-testid="tab-settings-brand">Brand</TabsTrigger>
+          <TabsTrigger value="desktop" data-testid="tab-settings-desktop">Desktop</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="library" className="mt-4 space-y-4 focus-visible:outline-none">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -484,21 +585,55 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-lg border border-border bg-background/50 p-4">
-            <p className="text-sm text-muted-foreground">Current library</p>
-            <p className="mt-1 break-all font-mono text-sm" data-testid="text-library-path">
-              {status.libraryPath || "Not set — using app-data workflows storage"}
-            </p>
+          <div className="rounded-lg border border-border bg-background/50 p-4 space-y-3">
+            <div>
+              <p className="text-sm text-muted-foreground">Current library</p>
+              <p className="mt-1 break-all font-mono text-sm" data-testid="text-library-path">
+                {status.libraryPath || "Not set — using app-data workflows storage"}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="library-path-input">
+                {isDesktop ? "Folder path (or use Browse)" : "Absolute folder path"}
+              </Label>
+              <Input
+                id="library-path-input"
+                value={libraryDraft}
+                onChange={(event) => setLibraryDraft(event.target.value)}
+                placeholder="/Users/you/Cutroom Library"
+                disabled={isSavingLibrary || Boolean(loadError)}
+                data-testid="input-library-path"
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Only new workflows use this folder. Existing topic folders stay where they were created.
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {isDesktop && (
+              <Button
+                type="button"
+                onClick={() => void handleChooseLibrary()}
+                disabled={isSavingLibrary || Boolean(loadError)}
+                data-testid="button-choose-library"
+              >
+                {isSavingLibrary ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FolderOpen className="mr-2 h-4 w-4" />}
+                Browse…
+              </Button>
+            )}
             <Button
               type="button"
-              onClick={() => void handleChooseLibrary()}
+              variant={isDesktop ? "outline" : "default"}
+              onClick={() => {
+                const input = document.getElementById("library-path-input") as HTMLInputElement | null;
+                void persistLibraryPath(input?.value ?? libraryDraft);
+              }}
               disabled={isSavingLibrary || Boolean(loadError)}
-              data-testid="button-choose-library"
+              data-testid="button-save-library"
             >
-              {isSavingLibrary ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FolderOpen className="mr-2 h-4 w-4" />}
-              {status.libraryPath ? "Change folder" : "Choose folder"}
+              {isSavingLibrary ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Save library path
             </Button>
             {status.libraryPath && (
               <Button
@@ -519,8 +654,8 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>Assemble preview</CardTitle>
           <CardDescription>
-            Optional step after Package. Default Off. Local FFmpeg template only — title card, Ken Burns thumbnail,
-            chapter cards, narration captions. No video-generator API keys.
+            Optional packaging animatic (preview.mp4) on Render. Default Off. Local FFmpeg only — not slides+voice and not cinematic.
+            Board and Render stay in the sidebar either way.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -550,9 +685,45 @@ export default function SettingsPage() {
                 : "Off"}
             </Button>
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/50 p-4">
+            <div>
+              <p className="text-sm font-medium">Storyboard stills (optional)</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Gemini image stills on the Board. Default Off. Always labeled inferred.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant={status.preferences?.storyboardStillsEnabled ? "default" : "outline"}
+              disabled={isSavingPreferences || Boolean(loadError)}
+              onClick={() => void handleTogglePreference("storyboardStillsEnabled", !status.preferences?.storyboardStillsEnabled)}
+              data-testid="button-toggle-storyboard-stills"
+            >
+              {status.preferences?.storyboardStillsEnabled ? "On" : "Off"}
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/50 p-4">
+            <div>
+              <p className="text-sm font-medium">ViMax companion export</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Optional script2video folder shape. Default Off. Cutroom never spawns ViMax and never uses VIMAX_* env.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant={status.preferences?.vimaxCompanionEnabled ? "default" : "outline"}
+              disabled={isSavingPreferences || Boolean(loadError)}
+              onClick={() => void handleTogglePreference("vimaxCompanionEnabled", !status.preferences?.vimaxCompanionEnabled)}
+              data-testid="button-toggle-vimax-companion"
+            >
+              {status.preferences?.vimaxCompanionEnabled ? "On" : "Off"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
+        </TabsContent>
 
+        <TabsContent value="desktop" className="mt-4 space-y-4 focus-visible:outline-none">
       <Card>
         <CardHeader>
           <CardTitle>YouTube Studio mirror</CardTitle>
@@ -635,7 +806,9 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
 
+        <TabsContent value="brand" className="mt-4 space-y-4 focus-visible:outline-none">
       <Card>
         <CardHeader>
           <CardTitle>Brand kit</CardTitle>
@@ -683,7 +856,9 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
 
+        <TabsContent value="api" className="mt-4 space-y-4 focus-visible:outline-none">
       <Card>
         <CardHeader>
           <CardTitle>API connections</CardTitle>
@@ -768,13 +943,39 @@ export default function SettingsPage() {
                 </a>
               </KeyField>
 
+              <KeyField
+                id="minimax-api-key"
+                label="MiniMax"
+                description="One BYOK key for MiniMax-M3 text, image-01 thumbnails, T2A speech, and Hailuo H3 cinematic video. Never returned to this window."
+                configured={Boolean(status.minimax)}
+                inputRef={minimaxKeyRef}
+                providerUrl="https://platform.minimax.io/user-center/basic-information/interface-key"
+                providerLabel="Open MiniMax API keys"
+              >
+                <p className="text-xs text-muted-foreground">
+                  Text model {status.models.minimaxTextModel || "MiniMax-M3"}. Hailuo H3 writes a quoted 9:16 Short after you confirm cost on Render. Uncheck to keep MiniMax for text/TTS/image only (Ken Burns stills).
+                </p>
+                <label className="flex items-start gap-2 text-sm">
+                  <Checkbox
+                    id="cinematic-veo"
+                    checked={cinematicVeoEnabled}
+                    onCheckedChange={(value) => setCinematicVeoEnabled(value === true)}
+                    data-testid="checkbox-cinematic-veo"
+                  />
+                  <span>
+                    Use MiniMax Hailuo H3 for cinematic Shorts (quote-before-run; inferred). Off keeps Ken Burns stills. No YouTube upload.
+                  </span>
+                </label>
+              </KeyField>
+
               <div className="space-y-3 rounded-lg border border-border bg-background/50 p-4">
                 <div>
                   <Label htmlFor="ai-text-provider" className="text-base">
-                    Package JSON text provider
+                    AI text provider
                   </Label>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Used for Package JSON completion. Research, ideas, scripts, and thumbnails still use Gemini.
+                    Used for Insights, Ideas, Script, Package, Board, and thumbnails when MiniMax is selected.
+                    Gemini remains the default. Keys are never shown again after save.
                   </p>
                 </div>
                 <Select value={aiProvider} onValueChange={setAiProvider}>
@@ -784,6 +985,7 @@ export default function SettingsPage() {
                   <SelectContent>
                     {(status.aiProviderOptions || [
                       { id: "gemini", label: "Gemini" },
+                      { id: "minimax", label: "MiniMax" },
                       { id: "openrouter", label: "OpenRouter" },
                       { id: "openai_compatible", label: "OpenAI-compatible" },
                       { id: "ollama", label: "Ollama (local)" },
@@ -900,6 +1102,42 @@ export default function SettingsPage() {
                 </div>
               )}
 
+              <KeyField
+                id="elevenlabs-api-key"
+                label="ElevenLabs (optional clone)"
+                description="Your voice only. Cutroom never clones creators from Research. Key is not shown again after save."
+                configured={Boolean(status.render?.elevenLabs)}
+                inputRef={elevenLabsKeyRef}
+                providerUrl="https://elevenlabs.io/app/settings/api-keys"
+                providerLabel="Open ElevenLabs API keys"
+              >
+                <div className="space-y-3 border-t border-border pt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="elevenlabs-voice-id">Voice id (yours)</Label>
+                    <Input
+                      id="elevenlabs-voice-id"
+                      value={elevenLabsVoiceId}
+                      onChange={(event) => setElevenLabsVoiceId(event.target.value)}
+                      placeholder="Leave blank to keep the current voice id"
+                      className="font-mono"
+                      autoComplete="off"
+                      data-testid="input-elevenlabs-voice-id"
+                    />
+                  </div>
+                  <label className="flex items-start gap-2 text-sm">
+                    <Checkbox
+                      id="voice-consent"
+                      checked={voiceConsent}
+                      onCheckedChange={(value) => setVoiceConsent(value === true)}
+                      data-testid="checkbox-voice-consent"
+                    />
+                    <span>
+                      I confirm this is my own voice (or a voice I have rights to). Do not clone anyone from the research snapshot.
+                    </span>
+                  </label>
+                </div>
+              </KeyField>
+
               <div className="flex justify-end pt-2">
                 <Button type="submit" disabled={isSaving || Boolean(loadError)} data-testid="button-save-api-settings">
                   {isSaving ? (
@@ -914,6 +1152,8 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

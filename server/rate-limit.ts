@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import type { ZodType } from "zod";
 
 export interface RateLimiterOptions {
   maxRequests?: number;
@@ -6,8 +7,13 @@ export interface RateLimiterOptions {
   now?: () => number;
 }
 
+/**
+ * In-process token bucket for expensive provider routes.
+ * Default ceiling is intentionally higher than a single Research→Ideas→Script
+ * burst so Insights + Ideas can complete back-to-back on one machine.
+ */
 export function createRateLimiter(options: RateLimiterOptions = {}) {
-  const maxRequests = options.maxRequests ?? 10;
+  const maxRequests = options.maxRequests ?? 48;
   const windowMs = options.windowMs ?? 60_000;
   const now = options.now ?? Date.now;
   const store = new Map<string, { count: number; resetTime: number }>();
@@ -48,4 +54,19 @@ export function createRateLimiter(options: RateLimiterOptions = {}) {
   };
 
   return { middleware, store };
+}
+
+/** Validate JSON body before rate limiting so 400s do not consume the budget. */
+export function requireValidBody<T>(schema: ZodType<T>, errorMessage: string) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: errorMessage,
+        details: parsed.error.errors,
+      });
+    }
+    res.locals.validatedBody = parsed.data;
+    next();
+  };
 }

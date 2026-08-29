@@ -46,6 +46,27 @@ test("Settings payload is strict, bounded, and model allowlisted", () => {
   assert.equal(apiKeySettingsSchema.safeParse({ youtubeApiKey: "x".repeat(513) }).success, false);
   assert.equal(apiKeySettingsSchema.safeParse({ geminiTextModel: "unknown-model" }).success, false);
   assert.equal(apiKeySettingsSchema.safeParse({ unexpected: true }).success, false);
+  assert.equal(apiKeySettingsSchema.safeParse({ minimaxApiKey: "minimax-key-ok" }).success, true);
+});
+
+test("settings status never returns MiniMax secret material", async () => {
+  const { getApiKeyStatus } = await import("./settings");
+  const previous = process.env.MINIMAX_API_KEY;
+  const previousVideo = process.env.CUTROOM_VIDEO_ENABLED;
+  process.env.MINIMAX_API_KEY = "super-secret-minimax-key";
+  delete process.env.CUTROOM_VIDEO_ENABLED;
+  try {
+    const status = getApiKeyStatus();
+    assert.equal(status.minimax, true);
+    assert.equal(status.render.hailuoH3, true);
+    assert.equal("minimaxApiKey" in status, false);
+    assert.equal(JSON.stringify(status).includes("super-secret-minimax-key"), false);
+  } finally {
+    if (previous === undefined) delete process.env.MINIMAX_API_KEY;
+    else process.env.MINIMAX_API_KEY = previous;
+    if (previousVideo === undefined) delete process.env.CUTROOM_VIDEO_ENABLED;
+    else process.env.CUTROOM_VIDEO_ENABLED = previousVideo;
+  }
 });
 
 test("public text request schemas reject oversized or unknown input", () => {

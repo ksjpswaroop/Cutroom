@@ -8,16 +8,24 @@ const PREFERENCES_NAME = "preferences.json";
 export const preferencesSchema = z.object({
   /** Optional assemble-only preview after Package (L-613). Default Off. */
   assemblePreviewEnabled: z.boolean().default(false),
+  /** Optional Gemini stills on the Board (L-716). Default Off; inferred when generated. */
+  storyboardStillsEnabled: z.boolean().default(false),
+  /** Optional ViMax-shaped folder export (L-720). Default Off; never spawn ViMax. */
+  vimaxCompanionEnabled: z.boolean().default(false),
 }).strict();
 
 export type AppPreferences = z.infer<typeof preferencesSchema>;
 
 export const preferencesUpdateSchema = z.object({
   assemblePreviewEnabled: z.boolean().optional(),
+  storyboardStillsEnabled: z.boolean().optional(),
+  vimaxCompanionEnabled: z.boolean().optional(),
 }).strict();
 
 const DEFAULTS: AppPreferences = {
   assemblePreviewEnabled: false,
+  storyboardStillsEnabled: false,
+  vimaxCompanionEnabled: false,
 };
 
 function preferencesPath(root = getEnvFilePaths().root): string {

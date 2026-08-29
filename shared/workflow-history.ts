@@ -1,7 +1,7 @@
 export const WORKFLOW_HISTORY_LIMIT = 8;
 export const WORKFLOW_TITLE_LIMIT = 48;
 
-export type WorkflowHistoryStep = "research" | "script" | "thumbnail" | "package" | "video";
+export type WorkflowHistoryStep = "research" | "script" | "thumbnail" | "package" | "board" | "video";
 
 export interface WorkflowTitleSignals {
   researchQuery?: string | null;
@@ -20,6 +20,7 @@ export interface WorkflowHistorySummary {
   hasScript: boolean;
   hasThumbnail: boolean;
   hasPackage?: boolean;
+  hasBoard?: boolean;
 }
 
 export function normalizeCustomWorkflowTitle(value: string): string | null {

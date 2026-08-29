@@ -106,7 +106,7 @@ Cutroom is **not** trying to replace Studio, Descript, or Opus. We own the **evi
 | Chrome extension overlays / A/B tests | TubeBuddy, 1of10 | **Later** — Studio A/B needs OAuth; extension is a different distribution |
 | Outlier “Nx” badges at YouTube scale | 1of10, OutlierKit | **Partial** — we compute snapshot momentum; not a global outlier index |
 | Channel reverse-engineer / Format DNA | OverseerOS | **Backlog** L-311 competitor/series workspace |
-| Faceless auto-edit / voiceover farm | OverseerOS, TubeAI | **Out of scope** (ROADMAP deferred). v3 adds a **filming board**, not a renderer ([V3_ROADMAP.md](V3_ROADMAP.md)) |
+| Faceless auto-edit / voiceover farm | OverseerOS, TubeAI | **Not a farm.** v3 opt-in **slides+voice** and **cinematic Shorts** on `/video`; personal videos stay **shoot myself**. No YouTube upload ([V3_ROADMAP.md](V3_ROADMAP.md)) |
 | Private Studio analytics | YouTube Studio + SaaS coaches | **Honest label only** (“Requires Studio”); optional OAuth mirror later (L-314) |
 | Caption-grounded insights | Some suites | **Next** L-306 |
 | Comment question mining | Some suites | **Next** L-307 |
@@ -123,7 +123,7 @@ Cutroom is **not** trying to replace Studio, Descript, or Opus. We own the **evi
 4. **Open source (Apache 2.0) + desktop sidecar** — inspectable, forkable, no mandatory login.  
 5. **Honest scope** — we refuse fake algorithm scores and Studio-only metrics presented as public facts.  
 6. **Publish package + export pack** — closes the loop to filming/upload without becoming an editor.  
-7. **Production board (v3)** — storyboard and camera tree bound to the same snapshot as Script; planning only, not generative video.
+7. **Production board (v3)** — storyboard bound to the same snapshot as Script; user chooses shoot / slides+voice / cinematic. Generated pixels are inferred. Cutroom does not publish.
 
 **Moat is process + trust architecture, not “another thumbnail button.”**
 
@@ -152,4 +152,4 @@ Cutroom is **not** trying to replace Studio, Descript, or Opus. We own the **evi
 - YouTube Data API quota cost (search is expensive) — mitigate with caching, smaller samples, optional innertube *only* with clear ToS labeling (not default).  
 - Gemini cost / lock-in — mitigate with OpenRouter + Ollama providers (MODELS.md).  
 - SaaS competitors shipping “local” marketing — our contracts + OSS must stay visible.  
-- Scope creep into editors — stay disciplined (ROADMAP deferred list). v3 Board is shots-on-paper, not a timeline.
+- Scope creep into editors — stay disciplined (ROADMAP deferred list). v3 Board is shots-on-paper plus FFmpeg/Veo engines, not a timeline NLE.

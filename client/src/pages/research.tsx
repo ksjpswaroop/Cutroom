@@ -682,24 +682,35 @@ export default function ResearchDashboard() {
     ideasFetchedRef.current = requestedSnapshotId;
 
     try {
-      const response = await fetch("/api/ideas/generate", {
+      const requestBody = {
+        niche: submittedQuery,
+        keywords: insights.trendingSubtopics?.slice(0, 6).join(", ") || "",
+        audience: insights.targetAudience?.primaryDemographic || "",
+        researchContext: {
+          query: submittedQuery,
+          snapshotId: requestedSnapshotId,
+          sourceVideoIds: sourceData.provenance.orderedVideoIds,
+          evidenceClaims,
+        },
+        ...(audienceQuestions.length > 0 ? { audienceQuestions } : {}),
+      };
+
+      const postIdeas = () => fetch("/api/ideas/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         signal: controller.signal,
-        body: JSON.stringify({
-          niche: submittedQuery,
-          keywords: insights.trendingSubtopics?.slice(0, 6).join(", ") || "",
-          audience: insights.targetAudience?.primaryDemographic || "",
-          researchContext: {
-            query: submittedQuery,
-            snapshotId: requestedSnapshotId,
-            sourceVideoIds: sourceData.provenance.orderedVideoIds,
-            evidenceClaims,
-          },
-          ...(audienceQuestions.length > 0 ? { audienceQuestions } : {}),
-        }),
+        body: JSON.stringify(requestBody),
       });
+
+      let response = await postIdeas();
+      if (response.status === 429) {
+        const payload = await response.json().catch(() => ({} as { retryAfter?: number }));
+        const waitSec = Math.min(45, Math.max(1, Number(payload.retryAfter) || 3));
+        await new Promise((resolve) => setTimeout(resolve, waitSec * 1000));
+        if (controller.signal.aborted || currentSnapshotRef.current !== requestedSnapshotId) return;
+        response = await postIdeas();
+      }
       if (!response.ok) throw await readApiError(response);
       const result = await response.json() as GroundedIdeaResponse;
       if (

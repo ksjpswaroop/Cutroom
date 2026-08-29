@@ -78,6 +78,48 @@ describe("server/ai text provider", () => {
     assert.equal(provider.id, "ollama");
   });
 
+  test("MiniMax without key returns missing_key", async () => {
+    const previous = process.env.MINIMAX_API_KEY;
+    try {
+      delete process.env.MINIMAX_API_KEY;
+      const provider = getTextProvider("minimax");
+      assert.equal(provider.id, "minimax");
+      await assert.rejects(
+        () => provider.completeJson({ prompt: "{}" }),
+        (error: unknown) => {
+          assert.ok(error instanceof ProviderError);
+          assert.equal(error.category, "missing_key");
+          assert.equal(error.code, "MINIMAX_MISSING_KEY");
+          return true;
+        },
+      );
+    } finally {
+      if (previous === undefined) delete process.env.MINIMAX_API_KEY;
+      else process.env.MINIMAX_API_KEY = previous;
+    }
+  });
+
+  test("image provider follows MiniMax text provider when a MiniMax key is set", async () => {
+    const { getImageProvider, resolveAiImageProviderId } = await import("./ai");
+    const previousImage = process.env.CUTROOM_IMAGE_PROVIDER;
+    const previousText = process.env.CUTROOM_AI_PROVIDER;
+    const previousKey = process.env.MINIMAX_API_KEY;
+    try {
+      delete process.env.CUTROOM_IMAGE_PROVIDER;
+      process.env.CUTROOM_AI_PROVIDER = "minimax";
+      process.env.MINIMAX_API_KEY = "test-minimax-key-value";
+      assert.equal(resolveAiImageProviderId(), "minimax");
+      assert.equal(getImageProvider().id, "minimax");
+    } finally {
+      if (previousImage === undefined) delete process.env.CUTROOM_IMAGE_PROVIDER;
+      else process.env.CUTROOM_IMAGE_PROVIDER = previousImage;
+      if (previousText === undefined) delete process.env.CUTROOM_AI_PROVIDER;
+      else process.env.CUTROOM_AI_PROVIDER = previousText;
+      if (previousKey === undefined) delete process.env.MINIMAX_API_KEY;
+      else process.env.MINIMAX_API_KEY = previousKey;
+    }
+  });
+
   test("getImageProvider() returns gemini by default", async () => {
     const { getImageProvider, resolveAiImageProviderId } = await import("./ai");
     const previous = process.env.CUTROOM_IMAGE_PROVIDER;

@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { deriveCameraTree, productionBoardOutputSchema } from "../shared/board-contracts";
 import { WORKFLOW_HISTORY_LIMIT } from "../shared/workflow-history";
 import { getEnvFilePaths } from "./env-path";
 import {
@@ -28,6 +29,16 @@ export function getWorkflowsDirectory(root = getEnvFilePaths().root): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function extractProductionBoard(state: Record<string, unknown>): Record<string, unknown> | null {
+  const cached = isRecord(state.cachedBoard) ? state.cachedBoard : null;
+  const nested = cached && isRecord(cached.board) ? cached.board : cached;
+  const fromPackage = isRecord(state.cachedPackage) && isRecord(state.cachedPackage.productionBoard)
+    ? state.cachedPackage.productionBoard
+    : null;
+  const candidate = nested && Array.isArray(nested.storyboardPanels) ? nested : fromPackage;
+  return isRecord(candidate) && Array.isArray(candidate.storyboardPanels) ? candidate : null;
 }
 
 export function parseWorkflowRecord<T>(value: unknown): StoredWorkflowRecord<T> | null {
@@ -147,6 +158,25 @@ async function mirrorReadableArtifacts<T>(dirPath: string, record: StoredWorkflo
       `${JSON.stringify(brief, null, 2)}\n`,
       "utf8",
     ));
+  }
+
+  const board = extractProductionBoard(state);
+  if (board) {
+    const briefDir = path.join(dirPath, "brief");
+    const parsed = productionBoardOutputSchema.safeParse(board);
+    const cameraTree = parsed.success
+      ? (parsed.data.cameraTree ?? deriveCameraTree(parsed.data.shots))
+      : (board.cameraTree || {});
+    writes.push((async () => {
+      await mkdir(briefDir, { recursive: true });
+      await Promise.all([
+        writeFile(path.join(briefDir, "board.json"), `${JSON.stringify(parsed.success ? parsed.data : board, null, 2)}\n`, "utf8"),
+        writeFile(path.join(briefDir, "characters.json"), `${JSON.stringify(parsed.success ? parsed.data.characters : board.characters || [], null, 2)}\n`, "utf8"),
+        writeFile(path.join(briefDir, "storyboard.json"), `${JSON.stringify(parsed.success ? parsed.data.storyboardPanels : board.storyboardPanels || [], null, 2)}\n`, "utf8"),
+        writeFile(path.join(briefDir, "shots.json"), `${JSON.stringify(parsed.success ? parsed.data.shots : board.shots || [], null, 2)}\n`, "utf8"),
+        writeFile(path.join(briefDir, "camera-tree.json"), `${JSON.stringify(cameraTree, null, 2)}\n`, "utf8"),
+      ]);
+    })());
   }
 
   const query = isRecord(state.cachedResearch) && typeof state.cachedResearch.query === "string"

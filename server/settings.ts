@@ -21,6 +21,7 @@ import {
   type GeminiImageModel,
   type GeminiTextModel,
 } from "./gemini-models";
+import { MINIMAX_TEXT_MODEL, minimaxConfigured } from "./minimax";
 
 const SUPPORTED_KEYS = [
   "YOUTUBE_API_KEY",
@@ -35,6 +36,14 @@ const SUPPORTED_KEYS = [
   "OPENAI_MODEL",
   "OLLAMA_BASE_URL",
   "OLLAMA_MODEL",
+  "ELEVENLABS_API_KEY",
+  "ELEVENLABS_VOICE_ID",
+  "CUTROOM_VOICE_CONSENT",
+  "CUTROOM_VIDEO_ENABLED",
+  "MINIMAX_API_KEY",
+  "MINIMAX_API_HOST",
+  "MINIMAX_TEXT_MODEL",
+  "CUTROOM_IMAGE_PROVIDER",
 ] as const;
 
 type SupportedKey = (typeof SUPPORTED_KEYS)[number];
@@ -52,6 +61,11 @@ export interface ApiKeySettings {
   openaiModel?: string;
   ollamaBaseUrl?: string;
   ollamaModel?: string;
+  elevenLabsApiKey?: string;
+  elevenLabsVoiceId?: string;
+  voiceConsent?: boolean;
+  cinematicVeoEnabled?: boolean;
+  minimaxApiKey?: string;
 }
 
 export const apiKeySettingsSchema = z.object({
@@ -67,6 +81,11 @@ export const apiKeySettingsSchema = z.object({
   openaiModel: z.string().trim().min(1).max(200).optional(),
   ollamaBaseUrl: z.string().trim().url().max(500).optional(),
   ollamaModel: z.string().trim().min(1).max(200).optional(),
+  elevenLabsApiKey: z.string().trim().min(8).max(512).optional(),
+  elevenLabsVoiceId: z.string().trim().min(1).max(80).optional(),
+  voiceConsent: z.boolean().optional(),
+  cinematicVeoEnabled: z.boolean().optional(),
+  minimaxApiKey: z.string().trim().min(8).max(512).optional(),
 }).strict();
 
 function isLoopbackAddress(address: string | undefined): boolean {
@@ -117,6 +136,8 @@ export function isTrustedLocalSettingsMetadata(input: LocalSettingsRequestMetada
   }
   if (!isLoopbackHostname(hostUrl.hostname)) return false;
 
+  // Origin is optional on loopback so local curl/devtools can manage settings.
+  // When present, it must still be same-host loopback (never a remote site).
   if (input.origin) {
     try {
       const origin = new URL(input.origin);
@@ -147,6 +168,25 @@ export function isLocalSettingsRequest(req: Request): boolean {
   });
 }
 
+function aiProviderLabel(id: AiProviderId): string {
+  switch (id) {
+    case "gemini":
+      return "Gemini";
+    case "openrouter":
+      return "OpenRouter";
+    case "ollama":
+      return "Ollama (local)";
+    case "openai_compatible":
+      return "OpenAI-compatible";
+    case "minimax":
+      return "MiniMax";
+    default: {
+      const _exhaustive: never = id;
+      return _exhaustive;
+    }
+  }
+}
+
 export function getApiKeyStatus() {
   const textModel = isGeminiTextModel(process.env.GEMINI_TEXT_MODEL || "")
     ? process.env.GEMINI_TEXT_MODEL as GeminiTextModel
@@ -157,6 +197,7 @@ export function getApiKeyStatus() {
   const aiProvider: AiProviderId = isAiProviderId(process.env.CUTROOM_AI_PROVIDER || "")
     ? (process.env.CUTROOM_AI_PROVIDER as AiProviderId)
     : "gemini";
+  const hailuoH3 = minimaxConfigured() && process.env.CUTROOM_VIDEO_ENABLED !== "0";
 
   return {
     youtube: Boolean(process.env.YOUTUBE_API_KEY?.trim()),
@@ -166,17 +207,11 @@ export function getApiKeyStatus() {
       process.env.OPENAI_API_KEY?.trim() || process.env.OPENAI_COMPATIBLE_API_KEY?.trim(),
     ),
     ollama: true,
+    minimax: minimaxConfigured(),
     aiProvider,
     aiProviderOptions: AI_PROVIDER_IDS.map((id) => ({
       id,
-      label:
-        id === "gemini"
-          ? "Gemini"
-          : id === "openrouter"
-            ? "OpenRouter"
-            : id === "ollama"
-              ? "Ollama (local)"
-              : "OpenAI-compatible",
+      label: aiProviderLabel(id),
     })),
     models: {
       text: textModel,
@@ -188,6 +223,17 @@ export function getApiKeyStatus() {
       ollamaModel: process.env.OLLAMA_MODEL?.trim() || "llama3.2",
       openaiBaseUrl: process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1",
       ollamaBaseUrl: process.env.OLLAMA_BASE_URL?.trim() || "http://127.0.0.1:11434/v1",
+      minimaxTextModel: process.env.MINIMAX_TEXT_MODEL?.trim() || MINIMAX_TEXT_MODEL,
+    },
+    render: {
+      elevenLabs: Boolean(process.env.ELEVENLABS_API_KEY?.trim()),
+      voiceConsent: process.env.CUTROOM_VOICE_CONSENT === "1",
+      cinematicVeo: hailuoH3,
+      cinematicVeoEnabled: minimaxConfigured()
+        ? process.env.CUTROOM_VIDEO_ENABLED !== "0"
+        : process.env.CUTROOM_VIDEO_ENABLED === "1",
+      hailuoH3,
+      youtubeUpload: false,
     },
     storage: (process.env.CUTROOM_APP_DATA?.trim() || process.env.LEDGER_APP_DATA?.trim())
       ? "app-data"
@@ -240,6 +286,8 @@ export async function saveApiKeySettings(input: ApiKeySettings) {
   const geminiApiKey = validateApiKey(input.geminiApiKey, "Gemini API key");
   const openrouterApiKey = validateApiKey(input.openrouterApiKey, "OpenRouter API key");
   const openaiApiKey = validateApiKey(input.openaiApiKey, "OpenAI-compatible API key");
+  const elevenLabsApiKey = validateApiKey(input.elevenLabsApiKey, "ElevenLabs API key");
+  const minimaxApiKey = validateApiKey(input.minimaxApiKey, "MiniMax API key");
   const currentStatus = getApiKeyStatus();
   const textModel = input.geminiTextModel ?? currentStatus.models.text;
   const imageModel = input.geminiImageModel ?? currentStatus.models.image;
@@ -253,7 +301,12 @@ export async function saveApiKeySettings(input: ApiKeySettings) {
     || input.openaiBaseUrl
     || input.openaiModel
     || input.ollamaBaseUrl
-    || input.ollamaModel,
+    || input.ollamaModel
+    || elevenLabsApiKey
+    || minimaxApiKey
+    || input.elevenLabsVoiceId
+    || input.voiceConsent !== undefined
+    || input.cinematicVeoEnabled !== undefined,
   );
 
   if (!youtubeApiKey && !geminiApiKey
@@ -330,6 +383,32 @@ export async function saveApiKeySettings(input: ApiKeySettings) {
   if (input.ollamaModel?.trim()) {
     contents = setEnvValue(contents, "OLLAMA_MODEL", input.ollamaModel.trim());
   }
+  if (elevenLabsApiKey) {
+    const storedInKeychain = await persistSecret("ELEVENLABS_API_KEY", elevenLabsApiKey);
+    if (!storedInKeychain) {
+      contents = setEnvValue(contents, "ELEVENLABS_API_KEY", elevenLabsApiKey);
+    }
+  }
+  if (minimaxApiKey) {
+    const storedInKeychain = await persistSecret("MINIMAX_API_KEY", minimaxApiKey);
+    if (!storedInKeychain) {
+      contents = setEnvValue(contents, "MINIMAX_API_KEY", minimaxApiKey);
+    }
+  }
+  if (aiProvider === "minimax") {
+    contents = setEnvValue(contents, "CUTROOM_IMAGE_PROVIDER", "minimax");
+  } else if (process.env.CUTROOM_IMAGE_PROVIDER === "minimax") {
+    contents = setEnvValue(contents, "CUTROOM_IMAGE_PROVIDER", "gemini");
+  }
+  if (input.elevenLabsVoiceId?.trim()) {
+    contents = setEnvValue(contents, "ELEVENLABS_VOICE_ID", input.elevenLabsVoiceId.trim());
+  }
+  if (input.voiceConsent !== undefined) {
+    contents = setEnvValue(contents, "CUTROOM_VOICE_CONSENT", input.voiceConsent ? "1" : "0");
+  }
+  if (input.cinematicVeoEnabled !== undefined) {
+    contents = setEnvValue(contents, "CUTROOM_VIDEO_ENABLED", input.cinematicVeoEnabled ? "1" : "0");
+  }
 
   const secretsBackend = await resolveSecretsBackend();
   if (secretsBackend === "keychain") {
@@ -351,6 +430,13 @@ export async function saveApiKeySettings(input: ApiKeySettings) {
   if (input.openaiModel?.trim()) process.env.OPENAI_MODEL = input.openaiModel.trim();
   if (input.ollamaBaseUrl?.trim()) process.env.OLLAMA_BASE_URL = input.ollamaBaseUrl.trim();
   if (input.ollamaModel?.trim()) process.env.OLLAMA_MODEL = input.ollamaModel.trim();
+  if (elevenLabsApiKey) process.env.ELEVENLABS_API_KEY = elevenLabsApiKey;
+  if (minimaxApiKey) process.env.MINIMAX_API_KEY = minimaxApiKey;
+  if (aiProvider === "minimax") process.env.CUTROOM_IMAGE_PROVIDER = "minimax";
+  else if (process.env.CUTROOM_IMAGE_PROVIDER === "minimax") process.env.CUTROOM_IMAGE_PROVIDER = "gemini";
+  if (input.elevenLabsVoiceId?.trim()) process.env.ELEVENLABS_VOICE_ID = input.elevenLabsVoiceId.trim();
+  if (input.voiceConsent !== undefined) process.env.CUTROOM_VOICE_CONSENT = input.voiceConsent ? "1" : "0";
+  if (input.cinematicVeoEnabled !== undefined) process.env.CUTROOM_VIDEO_ENABLED = input.cinematicVeoEnabled ? "1" : "0";
 
   return getApiKeyStatusAsync();
 }

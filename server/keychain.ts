@@ -15,6 +15,8 @@ export const SECRET_ENV_KEYS = [
   "OPENAI_API_KEY",
   "OPENAI_COMPATIBLE_API_KEY",
   "OLLAMA_API_KEY",
+  "ELEVENLABS_API_KEY",
+  "MINIMAX_API_KEY",
 ] as const;
 
 export type SecretEnvKey = (typeof SECRET_ENV_KEYS)[number];

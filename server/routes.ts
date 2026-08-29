@@ -6,7 +6,7 @@ import {
   searchVideos,
 } from "./youtube";
 import { getYouTubeQuotaUsage } from "./youtube-quota";
-import { generateScript, generateIdeas, generateResearchInsights, regenerateTitles, regenerateSection, regenerateParagraph, generateThumbnail, generateThumbnailSuggestions, extractNarrationText, generatePublishPackage, generateProductionBrief, critiqueThumbnail } from "./gemini";
+import { generateScript, generateIdeas, generateResearchInsights, regenerateTitles, regenerateSection, regenerateParagraph, generateThumbnail, generateThumbnailSuggestions, extractNarrationText, generatePublishPackage, generateProductionBrief, generateProductionBoard, critiqueThumbnail } from "./gemini";
 import {
   ideaGenerationRequestSchema,
   researchCaptionsRequestSchema,
@@ -14,6 +14,8 @@ import {
   researchInsightsRequestSchema,
   searchFiltersSchema,
   scriptInputSchema,
+  productionBoardRequestSchema,
+  productionBoardOutputSchema,
 } from "@shared/schema";
 import { z } from "zod";
 import { apiKeySettingsSchema, getApiKeyStatusAsync, isLocalSettingsRequest, saveApiKeySettings } from "./settings";
@@ -33,7 +35,9 @@ import {
   getAssemblePreviewStatus,
   renderAssemblePreview,
   resolveWorkflowPreviewPath,
+  resolveWorkflowRenderPath,
 } from "./assemble-preview";
+import { buildCinematicQuote, getRenderStatus, runRender } from "./render-engine";
 import {
   brandKitUpdateSchema,
   readBrandKit,
@@ -66,7 +70,7 @@ import {
   publishPackageRequestSchema,
   thumbnailCritiqueRequestSchema,
 } from "./package-contract";
-import { createRateLimiter } from "./rate-limit";
+import { createRateLimiter, requireValidBody } from "./rate-limit";
 import {
   deleteWorkflowRecordFromDisk,
   getWorkflowRecordFromDisk,
@@ -184,21 +188,25 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/package/clip-briefs", rateLimit, async (req, res) => {
+  app.post("/api/package/clip-briefs", (req, res, next) => {
+    const parsed = z.object({
+      scriptContent: z.string().trim().min(20).max(80_000),
+      wpm: z.number().int().min(80).max(250).optional(),
+    }).strict().safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Invalid clip briefs request",
+        details: parsed.error.flatten(),
+      });
+    }
+    res.locals.validatedBody = parsed.data;
+    return next();
+  }, rateLimit, async (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     try {
-      const parsed = z.object({
-        scriptContent: z.string().trim().min(20).max(80_000),
-        wpm: z.number().int().min(80).max(250).optional(),
-      }).strict().safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({
-          error: "Invalid clip briefs request",
-          details: parsed.error.flatten(),
-        });
-      }
-      const briefs = clipBriefsFromScript(parsed.data.scriptContent, {
-        wpm: parsed.data.wpm,
+      const parsed = res.locals.validatedBody as { scriptContent: string; wpm?: number };
+      const briefs = clipBriefsFromScript(parsed.scriptContent, {
+        wpm: parsed.wpm,
       });
       return res.json({ briefs, evidenceClass: "inferred" as const });
     } catch (error: any) {
@@ -283,7 +291,10 @@ export async function registerRoutes(
       return res.status(403).json({ error: "Preview status is available only from this machine." });
     }
     try {
-      return res.json(await getAssemblePreviewStatus());
+      return res.json({
+        ...(await getAssemblePreviewStatus()),
+        render: getRenderStatus(),
+      });
     } catch (error) {
       console.error("Preview status error:", error);
       return res.status(500).json({ error: "Unable to load preview status." });
@@ -335,6 +346,53 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/workflows/:id/render", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Render files are available only from this machine." });
+    }
+    if (!isValidWorkflowId(req.params.id)) {
+      return res.status(400).json({ error: "Invalid workflow id." });
+    }
+    try {
+      const renderPath = await resolveWorkflowRenderPath(req.params.id);
+      if (!renderPath) return res.status(404).json({ error: "No render.mp4 for this workflow yet." });
+      await fsAccess(renderPath, fsConstants.R_OK);
+      res.setHeader("Content-Type", "video/mp4");
+      createReadStream(renderPath).pipe(res);
+    } catch (error) {
+      console.error("Render file error:", error);
+      return res.status(500).json({ error: "Unable to read render.mp4." });
+    }
+  });
+
+  app.post("/api/preview/quote", rateLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Render quotes are available only from this machine." });
+    }
+    const board = req.body && typeof req.body === "object" ? (req.body as { board?: unknown }).board : undefined;
+    const parsedBoard = board ? productionBoardOutputSchema.safeParse(board) : undefined;
+    return res.json(buildCinematicQuote(parsedBoard?.success ? parsedBoard.data : undefined));
+  });
+
+  app.post("/api/preview/render", rateLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Render is available only from this machine." });
+    }
+    try {
+      const result = await runRender(req.body);
+      return res.json(result);
+    } catch (error: any) {
+      console.error("Render error:", error);
+      const status = typeof error?.status === "number" ? error.status : 500;
+      return res.status(status).json({
+        error: error?.message || "Unable to render.",
+      });
+    }
+  });
+
   app.put("/api/settings/library", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     if (!isLocalSettingsRequest(req)) {
@@ -383,13 +441,15 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/youtube/search", rateLimit, async (req, res) => {
+  app.get("/api/youtube/search", (req, res, next) => {
+    const query = req.query.query;
+    if (!query || typeof query !== "string" || !query.trim()) {
+      return res.status(400).json({ error: "Query parameter is required" });
+    }
+    return next();
+  }, rateLimit, async (req, res) => {
     try {
       const { query, uploadDate, duration, sortBy, maxResults, channelId } = req.query;
-
-      if (!query || typeof query !== "string") {
-        return res.status(400).json({ error: "Query parameter is required" });
-      }
 
       const filters = searchFiltersSchema.parse({
         query,
@@ -458,16 +518,17 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/script/generate", rateLimit, async (req, res) => {
+  app.post(
+    "/api/script/generate",
+    requireValidBody(scriptInputSchema, "Invalid script input"),
+    rateLimit,
+    async (req, res) => {
     try {
-      const input = scriptInputSchema.parse(req.body);
+      const input = res.locals.validatedBody as z.infer<typeof scriptInputSchema>;
       const result = await generateScript(input);
       res.json(result);
     } catch (error: any) {
       console.error("Script generation error:", error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Invalid script input", details: error.errors });
-      }
       const friendly = getUserFriendlyError(error, "Script generation");
       res.status(500).json({ error: friendly.message, suggestion: friendly.suggestion });
     }
@@ -488,14 +549,13 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/ideas/generate", rateLimit, async (req, res) => {
+  app.post(
+    "/api/ideas/generate",
+    requireValidBody(ideaGenerationRequestSchema, "Invalid grounded idea request"),
+    rateLimit,
+    async (_req, res) => {
     try {
-      const parsed = ideaGenerationRequestSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ error: "Invalid grounded idea request", details: parsed.error.errors });
-      }
-
-      const result = await generateIdeas(parsed.data);
+      const result = await generateIdeas(res.locals.validatedBody);
       res.json(result);
     } catch (error: unknown) {
       console.error("Ideas generation error:", error);
@@ -504,10 +564,10 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/research/insights", rateLimit, async (req, res) => {
-    try {
+  app.post(
+    "/api/research/insights",
+    (req, res, next) => {
       const parsed = researchInsightsRequestSchema.safeParse(req.body);
-
       if (!parsed.success) {
         return res.status(400).json({
           error: "A query and between 1 and 50 valid videos are required.",
@@ -515,8 +575,13 @@ export async function registerRoutes(
           details: parsed.error.errors,
         });
       }
-
-      const result = await generateResearchInsights(parsed.data);
+      res.locals.validatedBody = parsed.data;
+      return next();
+    },
+    rateLimit,
+    async (_req, res) => {
+    try {
+      const result = await generateResearchInsights(res.locals.validatedBody);
       res.json(result);
     } catch (error: unknown) {
       console.error("Research insights error:", error);
@@ -591,21 +656,23 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/thumbnail/generate", rateLimit, async (req, res) => {
+  app.post("/api/thumbnail/generate", (req, res, next) => {
+    const parsed = thumbnailGenerationRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Invalid thumbnail generation request",
+        code: "THUMBNAIL_REQUEST_INVALID",
+        category: "invalid_response",
+        retryable: false,
+        suggestion: "Review the thumbnail fields and reference image requirements, then try again.",
+        details: parsed.error.flatten(),
+      });
+    }
+    res.locals.validatedBody = parsed.data;
+    return next();
+  }, rateLimit, async (_req, res) => {
     try {
-      const parsed = thumbnailGenerationRequestSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({
-          error: "Invalid thumbnail generation request",
-          code: "THUMBNAIL_REQUEST_INVALID",
-          category: "invalid_response",
-          retryable: false,
-          suggestion: "Review the thumbnail fields and reference image requirements, then try again.",
-          details: parsed.error.flatten(),
-        });
-      }
-
-      const { topic, ...config } = parsed.data;
+      const { topic, ...config } = res.locals.validatedBody;
       const result = await generateThumbnail(topic, config);
       res.json(result);
     } catch (error: unknown) {
@@ -615,21 +682,23 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/thumbnail/suggestions", rateLimit, async (req, res) => {
+  app.post("/api/thumbnail/suggestions", (req, res, next) => {
+    const parsed = thumbnailSuggestionsRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Invalid thumbnail suggestions request",
+        code: "THUMBNAIL_SUGGESTIONS_REQUEST_INVALID",
+        category: "invalid_response",
+        retryable: false,
+        suggestion: "Add a valid topic and shorten any supplied idea context.",
+        details: parsed.error.flatten(),
+      });
+    }
+    res.locals.validatedBody = parsed.data;
+    return next();
+  }, rateLimit, async (_req, res) => {
     try {
-      const parsed = thumbnailSuggestionsRequestSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({
-          error: "Invalid thumbnail suggestions request",
-          code: "THUMBNAIL_SUGGESTIONS_REQUEST_INVALID",
-          category: "invalid_response",
-          retryable: false,
-          suggestion: "Add a valid topic and shorten any supplied idea context.",
-          details: parsed.error.flatten(),
-        });
-      }
-
-      const suggestions = await generateThumbnailSuggestions(parsed.data);
+      const suggestions = await generateThumbnailSuggestions(res.locals.validatedBody);
       res.json({ suggestions });
     } catch (error: unknown) {
       console.error("Thumbnail suggestions error:", error);
@@ -638,16 +707,19 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/package/generate", rateLimit, async (req, res) => {
+  app.post("/api/package/generate", (req, res, next) => {
+    const parsed = publishPackageRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Invalid publish package request",
+        details: parsed.error.flatten(),
+      });
+    }
+    res.locals.validatedBody = parsed.data;
+    return next();
+  }, rateLimit, async (_req, res) => {
     try {
-      const parsed = publishPackageRequestSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({
-          error: "Invalid publish package request",
-          details: parsed.error.flatten(),
-        });
-      }
-      const result = await generatePublishPackage(parsed.data);
+      const result = await generatePublishPackage(res.locals.validatedBody);
       res.json(result);
     } catch (error: unknown) {
       console.error("Publish package error:", error);
@@ -656,16 +728,19 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/package/production-brief", rateLimit, async (req, res) => {
+  app.post("/api/package/production-brief", (req, res, next) => {
+    const parsed = productionBriefRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Invalid production brief request",
+        details: parsed.error.flatten(),
+      });
+    }
+    res.locals.validatedBody = parsed.data;
+    return next();
+  }, rateLimit, async (_req, res) => {
     try {
-      const parsed = productionBriefRequestSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({
-          error: "Invalid production brief request",
-          details: parsed.error.flatten(),
-        });
-      }
-      const result = await generateProductionBrief(parsed.data);
+      const result = await generateProductionBrief(res.locals.validatedBody);
       res.json(result);
     } catch (error: unknown) {
       console.error("Production brief error:", error);
@@ -674,16 +749,40 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/thumbnail/critique", rateLimit, async (req, res) => {
+  app.post("/api/package/production-board", (req, res, next) => {
+    const parsed = productionBoardRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Invalid production board request",
+        details: parsed.error.flatten(),
+      });
+    }
+    res.locals.validatedBody = parsed.data;
+    return next();
+  }, rateLimit, async (_req, res) => {
     try {
-      const parsed = thumbnailCritiqueRequestSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({
-          error: "Invalid thumbnail critique request",
-          details: parsed.error.flatten(),
-        });
-      }
-      const result = await critiqueThumbnail(parsed.data);
+      const result = await generateProductionBoard(res.locals.validatedBody);
+      res.json(result);
+    } catch (error: unknown) {
+      console.error("Production board error:", error);
+      const providerError = normalizeProviderError(error, "gemini");
+      res.status(providerError.status).json(providerErrorPayload(providerError, "Gemini production board"));
+    }
+  });
+
+  app.post("/api/thumbnail/critique", (req, res, next) => {
+    const parsed = thumbnailCritiqueRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Invalid thumbnail critique request",
+        details: parsed.error.flatten(),
+      });
+    }
+    res.locals.validatedBody = parsed.data;
+    return next();
+  }, rateLimit, async (_req, res) => {
+    try {
+      const result = await critiqueThumbnail(res.locals.validatedBody);
       res.json(result);
     } catch (error: unknown) {
       console.error("Thumbnail critique error:", error);

@@ -6,7 +6,9 @@ export interface ProjectPackInput {
   thumbnailDataUrl?: string;
   publishPackage?: unknown;
   productionBrief?: unknown;
+  productionBoard?: unknown;
   previewDataUrl?: string;
+  renderDataUrl?: string;
 }
 
 export interface ProjectPackResult {
@@ -49,13 +51,32 @@ async function resolveDefaultExportDirectory(workflowId?: string | null): Promis
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function briefFilesFromBoard(base: string, board: unknown): { filename: string; content: string }[] {
+  if (!isRecord(board)) return [];
+  const characters = board.characters || [];
+  const storyboard = board.storyboardPanels || [];
+  const shots = board.shots || [];
+  const cameraTree = board.cameraTree || {};
+  return [
+    { filename: `${base}/brief/board.json`, content: JSON.stringify(board, null, 2) },
+    { filename: `${base}/brief/characters.json`, content: JSON.stringify(characters, null, 2) },
+    { filename: `${base}/brief/storyboard.json`, content: JSON.stringify(storyboard, null, 2) },
+    { filename: `${base}/brief/shots.json`, content: JSON.stringify(shots, null, 2) },
+    { filename: `${base}/brief/camera-tree.json`, content: JSON.stringify(cameraTree, null, 2) },
+  ];
+}
+
 export async function exportProjectPack(input: ProjectPackInput): Promise<ProjectPackResult> {
   const stamp = new Date().toISOString().slice(0, 10);
   const base = `${stamp}-${slugify(input.topic)}`;
   const files: { filename: string; content: string; is_base64?: boolean }[] = [
     {
       filename: `${base}/README.md`,
-      content: `# ${input.topic}\n\nExported from Cutroom on ${new Date().toISOString()}.\n`,
+      content: `# ${input.topic}\n\nExported from Cutroom on ${new Date().toISOString()}.\nGenerated pixels and clones are inferred. Upload in YouTube Studio yourself — Cutroom does not publish.\n`,
     },
   ];
 
@@ -68,6 +89,10 @@ export async function exportProjectPack(input: ProjectPackInput): Promise<Projec
   if (input.script) {
     files.push({
       filename: `${base}/script.md`,
+      content: input.script,
+    });
+    files.push({
+      filename: `${base}/script.txt`,
       content: input.script,
     });
   }
@@ -83,6 +108,7 @@ export async function exportProjectPack(input: ProjectPackInput): Promise<Projec
       content: JSON.stringify(input.productionBrief, null, 2),
     });
   }
+  files.push(...briefFilesFromBoard(base, input.productionBoard));
   if (input.thumbnailDataUrl?.startsWith("data:")) {
     const match = input.thumbnailDataUrl.match(/^data:([^;]+);base64,(.+)$/);
     if (match) {
@@ -98,6 +124,13 @@ export async function exportProjectPack(input: ProjectPackInput): Promise<Projec
     files.push({
       filename: `${base}/preview.mp4`,
       content: input.previewDataUrl.slice("data:video/mp4;base64,".length),
+      is_base64: true,
+    });
+  }
+  if (input.renderDataUrl?.startsWith("data:video/mp4;base64,")) {
+    files.push({
+      filename: `${base}/render.mp4`,
+      content: input.renderDataUrl.slice("data:video/mp4;base64,".length),
       is_base64: true,
     });
   }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ClipboardList, Download, Film, Loader2, Package, Sparkles } from "lucide-react";
+import { ClipboardList, Download, Film, LayoutGrid, Loader2, Package, Sparkles } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -201,6 +201,7 @@ export default function PackagePage() {
         thumbnailDataUrl: state.cachedThumbnail?.thumbnailData || undefined,
         publishPackage,
         productionBrief,
+        productionBoard: state.cachedBoard?.board,
       });
       toast({
         title: result.mode === "desktop" ? "Exported to folder" : "Download started",
@@ -222,7 +223,7 @@ export default function PackagePage() {
             Compose titles, hooks, description, tags, chapters, and a Studio measurement checklist from the active idea and script.
           </p>
         </div>
-        <Badge variant="outline">Step 4 of 4</Badge>
+        <Badge variant="outline">After package: Board</Badge>
       </div>
 
       {!topic && (
@@ -258,7 +259,11 @@ export default function PackagePage() {
         </Button>
         <Button variant="outline" onClick={() => void handleExport()} disabled={busy !== null}>
           {busy === "export" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-          Export project pack
+          Export pack
+        </Button>
+        <Button variant="outline" onClick={() => setLocation("/board")} disabled={!publishPackage && !state.cachedScript?.script} data-testid="button-open-board">
+          <LayoutGrid className="mr-2 h-4 w-4" />
+          Open Board
         </Button>
       </div>
 
@@ -411,7 +416,8 @@ export default function PackagePage() {
 
       <p className="text-xs text-muted-foreground">
         Prefer a different thumbnail? <Link href="/thumbnail" className="underline">Open Thumbnail Creator</Link>.
-        {" "}Optional assemble preview (Settings Off by default): <Link href="/video" className="underline">Open Assemble Preview</Link>.
+        {" "}Next: <Link href="/board" className="underline">Open Board</Link>
+        {" "}then <Link href="/video" className="underline">Render</Link>.
       </p>
     </div>
   );

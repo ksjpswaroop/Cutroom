@@ -17,7 +17,7 @@ Read `README.md` first. It describes the current product, local-first access mod
 - `src-tauri/`: Tauri 2 shell with Node sidecar on loopback.
 - `shared/schema.ts` and `shared/evidence-contracts.ts`: public request, response, and evidence contracts.
 
-Planned v3 (do not implement until throughline ships): production board contracts and `{project}/brief/` artifacts. See [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) and [docs/V3_FEATURES.md](docs/V3_FEATURES.md). Do not vendor ViMax or add video-generator keys.
+Planned v3 (do not implement until throughline ships): production board, render mode picker (shoot / slides+voice / cinematic), no YouTube upload. See [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) and [docs/V3_FEATURES.md](docs/V3_FEATURES.md). Do not vendor ViMax Python or add publish OAuth.
 
 ## Standing boundaries
 

@@ -2,6 +2,8 @@ import { z } from "zod";
 import { evidenceClaimSchema, scriptEvidenceContextSchema } from "./evidence-contracts";
 
 export * from "./evidence-contracts";
+export * from "./board-contracts";
+export * from "./render-contracts";
 
 export enum VideoFormat {
   SHORT = "YouTube Short (< 60 sec)",

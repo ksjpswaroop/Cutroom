@@ -13,15 +13,16 @@
 | **1.3** | Local images + desktop parity | Ollama/Comfy image path; teleprompter desktop mode (L-309); brand kit memory (L-308); Windows/Linux signed builds |
 | **1.4** | Research depth | Competitor/series workspace (L-311); calendar/batch (L-312); Shorts/clip briefs (L-313) |
 | **2.0** | Optional Studio mirror | OAuth read-only Studio metrics clearly separated from public snapshot (L-314); updater live; optional cloud sync decision |
-| **3.0** | Production board | Evidence-grounded storyboard, shots, camera tree after Package; ViMax planning schemas only — no renderer ([V3_ROADMAP.md](V3_ROADMAP.md), `L-701+`) |
-| **3.1** | Board polish | Optional inferred storyboard stills + ViMax-shaped export companion if slipped from 3.0 P2/P3 |
+| **3.0** | Board + chosen render | Evidence-grounded Board; mode picker; **shoot myself** + **slides+voice** `render.mp4`; no YouTube upload ([V3_ROADMAP.md](V3_ROADMAP.md), `L-701+`) |
+| **3.1** | Cinematic Shorts | TS Script2Video stages (stills → Veo-class clips → concat); quote-before-run; optional ViMax-shaped export flag Off |
 
 ## Release train (cadence target)
 
 - **Patch (1.0.x):** fixes, quota messaging, docs  
 - **Minor (1.x):** user-visible capabilities from TRACKER Phase 3+ / model plan  
 - **Major (2.0):** OAuth / sync / any cloud surface (requires security design)  
-- **Major (3.0):** Production Board (planning artifacts; still local-first, no video-generator keys)
+- **Major (3.0):** Production Board + shoot / slides+voice (local-first; optional TTS/clone keys; no upload)
+- **Major (3.1):** Cinematic Shorts (optional video-generator key; still no upload)
 
 ## Next version focus → **0.2 (Cutroom)**
 
@@ -35,10 +36,10 @@ After 0.2, resume **1.1** (`L-406`, `L-409`, leftover trust polish).
 - Hermes as primary backend ([HERMES_DECISION.md](HERMES_DECISION.md))  
 - Fake search volume / algorithm scores  
 - Mandatory accounts
-- Veo / talking-head / auto-upload (v0.2 assemble-only preview is the exception: local template render, Settings Off by default)
-- Vendoring ViMax or adding video-generator Settings keys (v3 Board is text planning + optional inferred stills on the existing image model)
+- Veo / talking-head / auto-upload (v0.2 assemble-only preview is the exception: local template render, Settings Off by default). **v3** adds opt-in slides+voice (3.0) and cinematic Shorts (3.1) on `/video`; still no YouTube publish ([V3_ROADMAP.md](V3_ROADMAP.md))
+- Vendoring ViMax Python / Idea2Video / OpenCut sidecar
 
-Schema enrichment for the production brief (`L-703+`) may land as a 1.x minor. The **3.0** named exit is Board UI + library `brief/` files.
+Schema enrichment for the production brief (`L-703+`) may land as a 1.x minor. **3.0** named exit is Board UI + shoot + slides+voice. **3.1** is cinematic Shorts.
 
 ## Packaging checklist (every desktop release)
 
@@ -46,5 +47,5 @@ Schema enrichment for the production brief (`L-703+`) may land as a 1.x minor. T
 2. `npm run desktop:build:macos` (signed app + DMG)  
 3. Notarize + staple when credentials present (`npm run desktop:notarize`)  
 4. `spctl -a -vv` shows Notarized Developer ID  
-5. Launch smoke: Research → Settings status → Script (throughline when shipped) → Thumbnail → Package → Board (v3) → Preview (if assemble enabled)  
+5. Launch smoke: Research → Settings status → Script (throughline when shipped) → Thumbnail → Package → Board (v3) → Render (shoot or slides; cinematic when 3.1)  
 6. Tag `vX.Y.Z` + [RELEASE_NOTES.md](../RELEASE_NOTES.md)

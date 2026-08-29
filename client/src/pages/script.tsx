@@ -98,6 +98,12 @@ interface ScriptActionError {
   message: string;
 }
 
+/** Keep form text fields as real strings; strip accidental `undefined`/`null` suffixes. */
+function asFormText(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/(?:undefined|null)$/g, "").trimEnd();
+}
+
 function providerAwareScriptError(error: unknown, fallback: string): string {
   const message = error instanceof Error ? error.message : String(error || "");
   const normalized = message.toLowerCase();
@@ -1132,6 +1138,9 @@ export default function ScriptPage() {
 
   const form = useForm<ScriptInput>({
     resolver: zodResolver(scriptInputSchema),
+    mode: "onSubmit",
+    reValidateMode: "onChange",
+    shouldFocusError: true,
     defaultValues: {
       topic: "",
       format: VideoFormat.LONG_FORM,
@@ -1197,12 +1206,12 @@ export default function ScriptPage() {
     const cached = workflowState.cachedScript;
     if (!cached?.script) return;
     form.reset({
-      topic: cached.topic,
+      topic: asFormText(cached.topic),
       format: cached.format as VideoFormat,
       audience: cached.audience as TargetAudience,
       persona: (cached.persona || CreatorPersona.NONE) as CreatorPersona,
-      customPersona: cached.customPersona || "",
-      additionalNotes: cached.additionalNotes || "",
+      customPersona: asFormText(cached.customPersona) || "",
+      additionalNotes: asFormText(cached.additionalNotes) || "",
     });
     setResult(cached.result || {
       script: cached.script,
@@ -1224,7 +1233,7 @@ export default function ScriptPage() {
   useEffect(() => {
     if (workflowState.isWorkflowActive && workflowState.idea?.selectedIdea && !workflowState.cachedScript) {
       const idea = workflowState.idea.selectedIdea;
-      form.setValue("topic", idea.title);
+      form.setValue("topic", asFormText(idea.title));
       form.setValue("format", mapFormatToEnum(idea.format));
       form.setValue("audience", mapAudienceToEnum(workflowState.idea.audience));
 
@@ -1268,9 +1277,11 @@ export default function ScriptPage() {
 
       // Cache script data for Thumbnail Creator
       const formValues = form.getValues();
+      const topic = asFormText(formValues.topic);
+      if (topic !== formValues.topic) form.setValue("topic", topic, { shouldDirty: false });
       setScriptData({
         script: data.script,
-        topic: formValues.topic,
+        topic,
         title: data.titles?.[0],
         format: formValues.format,
         audience: formValues.audience,
@@ -1298,10 +1309,15 @@ export default function ScriptPage() {
   const onSubmit = (data: ScriptInput) => {
     const cleanedData = {
       ...data,
+      topic: asFormText(data.topic),
       customPersona: data.persona === CreatorPersona.OTHER
         ? data.customPersona?.trim()
         : undefined,
     };
+    if (!cleanedData.topic) {
+      form.setError("topic", { type: "manual", message: "Topic is required" });
+      return;
+    }
     generateMutation.mutate(cleanedData);
   };
 
@@ -1766,14 +1782,21 @@ export default function ScriptPage() {
                         <FormControl>
                           <Input
                             placeholder="e.g., How to build a React app from scratch"
-                            {...field}
+                            name={field.name}
+                            ref={field.ref}
+                            onBlur={(event) => {
+                              field.onChange(asFormText(event.target.value));
+                              field.onBlur();
+                            }}
+                            value={field.value ?? ""}
+                            onChange={(event) => field.onChange(event.target.value)}
                             data-testid="input-topic"
                           />
                         </FormControl>
                         <FormDescription>
                           What is your video about?
                         </FormDescription>
-                        <FormMessage />
+                        <FormMessage data-testid="error-topic" />
                       </FormItem>
                     )}
                   />

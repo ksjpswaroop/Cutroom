@@ -41,9 +41,9 @@ The WebView must load the Express origin so loopback Settings checks in `server/
 | **4** Model freedom & trust | Provider interface, Ollama/OpenRouter, keychain, notarized macOS (see [docs/MODELS.md](docs/MODELS.md), [docs/RELEASE_PLAN.md](docs/RELEASE_PLAN.md)) |
 | **5** Research depth & optional Studio | Competitor workspace, calendar, clip briefs, OAuth Studio mirror (labeled) |
 | **6** Cutroom v0.2 | Cutroom rebrand, script throughline, caption/comment Insights, assemble-only preview ([TRACKER.md](TRACKER.md) `L-601+`) |
-| **7** Production board v3 | ViMax-inspired storyboard, shots, camera tree — planning only, no renderer ([docs/V3_ROADMAP.md](docs/V3_ROADMAP.md), `L-701+`) |
+| **7** Production board v3 | One Board; shoot / slides+voice / cinematic; no upload ([docs/V3_ROADMAP.md](docs/V3_ROADMAP.md), `L-701+`) |
 
-Strategy baseline (competitors, moat, Hermes decision, investor/user pitches): [docs/STRATEGY.md](docs/STRATEGY.md). v3 planning desk: [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) · [docs/V3_FEATURES.md](docs/V3_FEATURES.md).
+Strategy baseline (competitors, moat, Hermes decision, investor/user pitches): [docs/STRATEGY.md](docs/STRATEGY.md). v3 Board + render: [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) · [docs/V3_FEATURES.md](docs/V3_FEATURES.md).
 
 ## Platform defaults
 
@@ -54,7 +54,7 @@ Strategy baseline (competitors, moat, Hermes decision, investor/user pitches): [
 
 ## Standing boundaries
 
-- Preserve snapshot IDs and evidence contracts through Research → Ideas → Script → Package (and Board in v3)
+- Preserve snapshot IDs and evidence contracts through Research → Ideas → Script → Package → Board → Render (v3)
 - Never return API keys to the WebView or log request/response bodies
 - No live provider calls in automated tests
 - Do not reintroduce retired login / Pro Script Studio / Replit AI proxy / DB session stack
@@ -67,14 +67,15 @@ Strategy baseline (competitors, moat, Hermes decision, investor/user pitches): [
 - Fake algorithm scores or invented search volume
 - Bulk Studio upload automation that fights YouTube ToS
 - Replacing the Node/Express sidecar with Hermes Agent ([docs/HERMES_DECISION.md](docs/HERMES_DECISION.md))
-- Vendoring ViMax / any generative video runtime (Veo, keyframes, Idea2Video). Planning schemas only: [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md)
+- Vendoring ViMax Python / Idea2Video / OpenCut. Cinematic render is Cutroom TypeScript on `/video` ([docs/V3_ROADMAP.md](docs/V3_ROADMAP.md))
+- YouTube auto-upload from Cutroom (`videos.insert`)
 
 ## Version pointers
 
 | Version | Doc |
 | --- | --- |
 | Feature inventory | [docs/FEATURES.md](docs/FEATURES.md) |
-| v3 production board | [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) · [docs/V3_FEATURES.md](docs/V3_FEATURES.md) |
+| v3 Board + render | [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) · [docs/V3_FEATURES.md](docs/V3_FEATURES.md) |
 | Competitive / moat | [docs/STRATEGY.md](docs/STRATEGY.md) |
 | Models plan | [docs/MODELS.md](docs/MODELS.md) |
 | Release train | [docs/RELEASE_PLAN.md](docs/RELEASE_PLAN.md) |

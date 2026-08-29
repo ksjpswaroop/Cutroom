@@ -5,6 +5,7 @@ const STUB_LABELS: Record<Exclude<AiProviderId, "gemini">, string> = {
   openai_compatible: "OpenAI-compatible provider",
   ollama: "Ollama",
   openrouter: "OpenRouter",
+  minimax: "MiniMax",
 };
 
 /**

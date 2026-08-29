@@ -8,6 +8,7 @@ export const AI_PROVIDER_IDS = [
   "openai_compatible",
   "ollama",
   "openrouter",
+  "minimax",
 ] as const;
 
 export type AiProviderId = (typeof AI_PROVIDER_IDS)[number];
@@ -19,6 +20,7 @@ export function isAiProviderId(value: string): value is AiProviderId {
 export const AI_IMAGE_PROVIDER_IDS = [
   "gemini",
   "ollama",
+  "minimax",
 ] as const;
 
 export type AiImageProviderId = (typeof AI_IMAGE_PROVIDER_IDS)[number];

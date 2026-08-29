@@ -28,6 +28,8 @@ describe("keychain helpers", () => {
     assert.ok(SECRET_ENV_KEYS.includes("YOUTUBE_API_KEY"));
     assert.ok(SECRET_ENV_KEYS.includes("GEMINI_API_KEY"));
     assert.ok(SECRET_ENV_KEYS.includes("OPENROUTER_API_KEY"));
+    assert.ok(SECRET_ENV_KEYS.includes("ELEVENLABS_API_KEY"));
+    assert.ok(SECRET_ENV_KEYS.includes("MINIMAX_API_KEY"));
   });
 
   test("isKeychainPreferred respects CUTROOM_SECRETS_BACKEND=env", () => {

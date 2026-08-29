@@ -276,7 +276,15 @@ fn cmd_pick_library_folder(app: AppHandle) -> Result<Option<String>, String> {
         .set_title("Choose Cutroom library folder")
         .blocking_pick_folder();
 
-    Ok(selected.map(|path| path.to_string()))
+    match selected {
+        None => Ok(None),
+        Some(file_path) => {
+            let path = file_path
+                .into_path()
+                .map_err(|error| format!("Could not read the selected folder: {error}"))?;
+            Ok(Some(path.to_string_lossy().to_string()))
+        }
+    }
 }
 
 #[tauri::command]
