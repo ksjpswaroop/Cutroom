@@ -2,7 +2,7 @@
  * Render engines: shoot (pack only), slides+voice, cinematic Shorts.
  * No YouTube upload. Generated pixels/audio are inferred.
  */
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { checkProductionBoard, type ProductionBoardOutput } from "@shared/board-contracts";
@@ -132,12 +132,6 @@ async function finalizeRenderFile(
   if (!ffmpeg) {
     throw Object.assign(new Error("FFmpeg was not found. Install FFmpeg or set FFMPEG_PATH."), { status: 503 });
   }
-  const output = await resolveRenderOutputPath({
-    topic: request.topic,
-    title: request.title,
-    workflowId: request.workflowId,
-    workflowTitle: request.workflowTitle,
-  });
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "cutroom-mux-"));
   const muxed = path.join(tempRoot, "render.mp4");
   await muxAudioOntoVideo({
@@ -147,8 +141,14 @@ async function finalizeRenderFile(
     outPath: muxed,
     cwd: tempRoot,
   });
-  const bytes = await readFile(muxed);
-  await writeFile(output.absolute, bytes);
+  const output = await resolveRenderOutputPath({
+    topic: request.topic,
+    title: request.title,
+    workflowId: request.workflowId,
+    workflowTitle: request.workflowTitle,
+  });
+  await mkdir(path.dirname(output.absolute), { recursive: true });
+  await writeFile(output.absolute, await readFile(muxed));
   return output;
 }
 
@@ -181,12 +181,8 @@ export async function runRender(raw: unknown): Promise<RenderResult> {
       throw Object.assign(new Error("Cinematic render requires confirmCinematic after the cost quote."), { status: 400 });
     }
     if (hailuoH3Enabled()) {
-      const output = await resolveRenderOutputPath({
-        topic: request.topic,
-        title: request.title,
-        workflowId: request.workflowId,
-        workflowTitle: request.workflowTitle,
-      });
+      const staging = await mkdtemp(path.join(os.tmpdir(), "cutroom-h3-"));
+      const staged = path.join(staging, "render.mp4");
       const h3 = await generateHailuoH3Clip({
         topic: request.topic,
         title: request.title,
@@ -194,9 +190,17 @@ export async function runRender(raw: unknown): Promise<RenderResult> {
         board: request.board,
         thumbnailDataUrl: request.thumbnailDataUrl,
         maxShots: request.maxShots || 5,
-        dest: output.absolute,
+        dest: staged,
         durationSec: MINIMAX_H3_DURATION_SEC,
       });
+      const output = await resolveRenderOutputPath({
+        topic: request.topic,
+        title: request.title,
+        workflowId: request.workflowId,
+        workflowTitle: request.workflowTitle,
+      });
+      await mkdir(path.dirname(output.absolute), { recursive: true });
+      await copyFile(staged, output.absolute);
       const shotCount = Math.min(5, request.board?.shots.length || request.maxShots || 3);
       return {
         engine: "cinematic",

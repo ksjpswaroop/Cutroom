@@ -122,6 +122,12 @@ export const providerErrorResponseSchema = z.object({
   category: providerErrorCategorySchema,
   retryable: z.boolean(),
   suggestion: z.string(),
+  /**
+   * The provider's own message, when it says something the generic category
+   * copy cannot — which model is missing, which command installs it. Omitted
+   * when the provider message adds nothing beyond the category.
+   */
+  detail: z.string().optional(),
 });
 
 export type ProviderErrorResponse = z.infer<typeof providerErrorResponseSchema>;

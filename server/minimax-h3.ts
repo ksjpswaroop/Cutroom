@@ -3,7 +3,8 @@
  * POST /v2/video_generation then poll /v2/query/video_generation/{task_id}.
  * Output is inferred. Never uploads to YouTube. Tests inject fetch — no live MiniMax.
  */
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import type { ProductionBoardOutput } from "@shared/board-contracts";
 import {
   hailuoH3Resolution,
@@ -93,10 +94,11 @@ export async function generateHailuoH3Clip(input: {
   };
   const taskId = created.task_id || created.task?.id;
   if (!create.ok || !taskId) {
-    throw Object.assign(
-      new Error(created.error?.message || `MiniMax H3 create failed (${create.status}).`),
-      { status: create.status === 401 ? 401 : 502 },
-    );
+    const raw = created.error?.message || `MiniMax H3 create failed (${create.status}).`;
+    const message = /TokenPlan or Credit does not currently support MiniMax-H3/i.test(raw)
+      ? "MiniMax-H3 requires a Pay-as-you-go API key and PAYG balance. Token Plan and prepaid Credits do not include Hailuo H3."
+      : raw;
+    throw Object.assign(new Error(message), { status: create.status === 401 ? 401 : 502 });
   }
 
   const pollMs = input.pollMs ?? 10_000;
@@ -132,6 +134,7 @@ export async function generateHailuoH3Clip(input: {
     throw Object.assign(new Error(`MiniMax H3 download failed (${download.status}).`), { status: 502 });
   }
   const bytes = Buffer.from(await download.arrayBuffer());
+  await mkdir(path.dirname(input.dest), { recursive: true });
   await writeFile(input.dest, bytes);
   return { durationSec: duration, model: MINIMAX_H3_MODEL };
 }

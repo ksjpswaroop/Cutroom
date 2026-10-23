@@ -1,3 +1,6 @@
+import { stripLeakedUndefined } from "@shared/workflow-history";
+import { buildStoreZip } from "@shared/zip-store";
+
 export interface ProjectPackInput {
   topic: string;
   workflowId?: string | null;
@@ -17,11 +20,11 @@ export interface ProjectPackResult {
 }
 
 function slugify(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "cutroom-project";
+  return stripLeakedUndefined(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "cutroom-project";
 }
 
-function downloadBlob(filename: string, content: string, type = "text/plain") {
-  const blob = new Blob([content], { type });
+function downloadBytes(filename: string, bytes: Uint8Array, type: string) {
+  const blob = new Blob([bytes], { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -70,20 +73,45 @@ function briefFilesFromBoard(base: string, board: unknown): { filename: string; 
   ];
 }
 
+function decodeBase64(content: string): Uint8Array {
+  const binary = atob(content);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+export async function fetchWorkflowMediaDataUrl(
+  workflowId: string | null | undefined,
+  kind: "preview" | "render",
+): Promise<string | undefined> {
+  if (!workflowId) return undefined;
+  const response = await fetch(`/api/workflows/${encodeURIComponent(workflowId)}/${kind}`, { cache: "no-store" });
+  if (!response.ok) return undefined;
+  const buffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return `data:video/mp4;base64,${btoa(binary)}`;
+}
+
 export async function exportProjectPack(input: ProjectPackInput): Promise<ProjectPackResult> {
   const stamp = new Date().toISOString().slice(0, 10);
-  const base = `${stamp}-${slugify(input.topic)}`;
+  const topic = stripLeakedUndefined(input.topic) || "cutroom-project";
+  const base = `${stamp}-${slugify(topic)}`;
   const files: { filename: string; content: string; is_base64?: boolean }[] = [
     {
       filename: `${base}/README.md`,
-      content: `# ${input.topic}\n\nExported from Cutroom on ${new Date().toISOString()}.\nGenerated pixels and clones are inferred. Upload in YouTube Studio yourself — Cutroom does not publish.\n`,
+      content: `# ${topic}\n\nExported from Cutroom on ${new Date().toISOString()}.\nGenerated pixels and clones are inferred. Upload in YouTube Studio yourself — Cutroom does not publish.\n`,
     },
   ];
 
   if (input.researchQuery) {
     files.push({
       filename: `${base}/research-query.txt`,
-      content: input.researchQuery,
+      content: stripLeakedUndefined(input.researchQuery) || input.researchQuery,
     });
   }
   if (input.script) {
@@ -145,21 +173,10 @@ export async function exportProjectPack(input: ProjectPackInput): Promise<Projec
     return { mode: "desktop", path };
   }
 
-  for (const file of files) {
-    if (file.is_base64) {
-      const binary = atob(file.content);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes]);
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = file.filename.split("/").pop() || "file.bin";
-      anchor.click();
-      URL.revokeObjectURL(url);
-    } else {
-      downloadBlob(file.filename.split("/").pop() || "file.txt", file.content);
-    }
-  }
-  return { mode: "browser" };
+  const zip = buildStoreZip(files.map((file) => ({
+    name: file.filename,
+    data: file.is_base64 ? decodeBase64(file.content) : new TextEncoder().encode(file.content),
+  })));
+  downloadBytes(`${base}.zip`, zip, "application/zip");
+  return { mode: "browser", path: `${base}.zip` };
 }

@@ -12,7 +12,14 @@ const ScrollArea = React.forwardRef<
     className={cn("relative overflow-hidden", className)}
     {...props}
   >
-    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+    {/*
+      Radix renders the viewport's content inside a `display: table` wrapper,
+      which sizes to its own content and so refuses to shrink below it. In a
+      width-constrained pane that pushes wide children past the visible area
+      with no way to scroll to them. Forcing the wrapper back to a block box
+      makes the content respect the container width and wrap as intended.
+    */}
+    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit] [&>div]:!block [&>div]:!min-w-0">
       {children}
     </ScrollAreaPrimitive.Viewport>
     <ScrollBar />

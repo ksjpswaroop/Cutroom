@@ -12,6 +12,8 @@ export const preferencesSchema = z.object({
   storyboardStillsEnabled: z.boolean().default(false),
   /** Optional ViMax-shaped folder export (L-720). Default Off; never spawn ViMax. */
   vimaxCompanionEnabled: z.boolean().default(false),
+  /** Optional local Hermes cron digest (L-508). Default Off; never spawn Hermes. */
+  hermesCompanionEnabled: z.boolean().default(false),
 }).strict();
 
 export type AppPreferences = z.infer<typeof preferencesSchema>;
@@ -20,12 +22,14 @@ export const preferencesUpdateSchema = z.object({
   assemblePreviewEnabled: z.boolean().optional(),
   storyboardStillsEnabled: z.boolean().optional(),
   vimaxCompanionEnabled: z.boolean().optional(),
+  hermesCompanionEnabled: z.boolean().optional(),
 }).strict();
 
 const DEFAULTS: AppPreferences = {
   assemblePreviewEnabled: false,
   storyboardStillsEnabled: false,
   vimaxCompanionEnabled: false,
+  hermesCompanionEnabled: false,
 };
 
 function preferencesPath(root = getEnvFilePaths().root): string {

@@ -225,7 +225,7 @@ export function AppSidebar() {
             <span className="text-lg font-bold text-sidebar-foreground" data-testid="text-app-name">
               Cutroom
             </span>
-            <span className="text-xs text-muted-foreground truncate">
+            <span className="text-xs leading-tight text-muted-foreground">
               Research through a checkable video
             </span>
           </div>

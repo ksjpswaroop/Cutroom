@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { useWorkflow } from "@/lib/workflow-context";
 import { apiRequest } from "@/lib/queryClient";
-import { exportProjectPack } from "@/lib/export-pack";
+import { exportProjectPack, fetchWorkflowMediaDataUrl } from "@/lib/export-pack";
+import { stripLeakedUndefined } from "@shared/workflow-history";
 import type { ProductionBoardOutput } from "@shared/board-contracts";
 import type { CinematicQuote } from "@shared/render-contracts";
 
@@ -71,12 +72,14 @@ export default function VideoPage() {
 
   const publishPackage = (state.cachedPackage?.publishPackage || null) as PublishPackage | null;
   const board = (state.cachedBoard?.board || null) as ProductionBoardOutput | null;
-  const topic = state.cachedPackage?.topic
+  const topic = stripLeakedUndefined(
+    state.cachedPackage?.topic
     || state.cachedScript?.topic
     || state.idea?.selectedIdea?.title
     || state.idea?.niche
     || state.cachedResearch?.query
-    || "";
+    || "",
+  );
   const title = publishPackage?.titles?.[0]?.title || topic || "Cutroom preview";
 
   useEffect(() => {
@@ -103,7 +106,7 @@ export default function VideoPage() {
     return `/api/workflows/${encodeURIComponent(state.id)}/${kind}?t=${previewRevision}`;
   }, [state.id, result, previewRevision]);
 
-  const renderPayload = () => ({
+  const assemblePayload = () => ({
     topic: topic || "Untitled",
     title,
     chapters: publishPackage?.chapters || [],
@@ -111,6 +114,10 @@ export default function VideoPage() {
     thumbnailDataUrl: state.cachedThumbnail?.thumbnailData || undefined,
     workflowId: state.id || undefined,
     workflowTitle: state.title || undefined,
+  });
+
+  const renderPayload = () => ({
+    ...assemblePayload(),
     snapshotId: state.cachedScript?.evidenceContext?.snapshotId,
     board: board || undefined,
     voiceConsent: status?.render?.voiceConsent ? true as const : undefined,
@@ -166,7 +173,7 @@ export default function VideoPage() {
     setError(null);
     try {
       if (engine === "assemble") {
-        const body = await apiRequest("POST", "/api/preview/assemble", renderPayload()) as {
+        const body = await apiRequest("POST", "/api/preview/assemble", assemblePayload()) as {
           engine: string;
           path: string;
           relativePath: string;
@@ -217,17 +224,7 @@ export default function VideoPage() {
   };
 
   const fetchDataUrl = async (kind: "preview" | "render"): Promise<string | undefined> => {
-    if (!state.id) return undefined;
-    const response = await fetch(`/api/workflows/${encodeURIComponent(state.id)}/${kind}`, { cache: "no-store" });
-    if (!response.ok) return undefined;
-    const buffer = await response.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    let binary = "";
-    const chunk = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunk) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-    }
-    return `data:video/mp4;base64,${btoa(binary)}`;
+    return fetchWorkflowMediaDataUrl(state.id, kind);
   };
 
   const handleExport = async () => {
@@ -252,7 +249,7 @@ export default function VideoPage() {
         title: "Project pack exported",
         description: exported.mode === "desktop"
           ? `Saved to ${exported.path}`
-          : "Downloads started in the browser.",
+          : `Saved ${exported.path || "the project pack.zip"} to your downloads folder.`,
       });
     } catch (err: any) {
       setError(err?.message || "Export failed.");
@@ -408,7 +405,12 @@ export default function VideoPage() {
             <video
               key={videoSrc}
               controls
-              className="aspect-video w-full rounded-md bg-black"
+              playsInline
+              className={`w-full rounded-md bg-black object-contain ${
+                result?.engine === "cinematic"
+                  ? "mx-auto max-h-[80vh] max-w-sm aspect-[9/16]"
+                  : "aspect-video"
+              }`}
               src={videoSrc}
               data-testid="video-review-player"
             />

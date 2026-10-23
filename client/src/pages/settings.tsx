@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { checkForDesktopUpdate, installDesktopUpdate } from "@/lib/desktop-updater";
+import { OllamaPanel } from "@/components/ollama-panel";
 
 interface ModelOption {
   id: string;
@@ -41,6 +42,7 @@ interface ApiKeyStatus {
     assemblePreviewEnabled?: boolean;
     storyboardStillsEnabled?: boolean;
     vimaxCompanionEnabled?: boolean;
+    hermesCompanionEnabled?: boolean;
   };
   assemblePreview?: {
     assemblePreviewEnabled: boolean;
@@ -176,8 +178,8 @@ export default function SettingsPage() {
   const [openrouterModel, setOpenrouterModel] = useState("openrouter/auto");
   const [openaiModel, setOpenaiModel] = useState("gpt-4o-mini");
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState("https://api.openai.com/v1");
-  const [ollamaModel, setOllamaModel] = useState("llama3.2");
-  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://127.0.0.1:11434/v1");
+  const [ollamaModel, setOllamaModel] = useState("llama3.2:3b");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://127.0.0.1:11434");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingLibrary, setIsSavingLibrary] = useState(false);
@@ -229,8 +231,8 @@ export default function SettingsPage() {
         setOpenrouterModel(nextStatus.models.openrouterModel || "openrouter/auto");
         setOpenaiModel(nextStatus.models.openaiModel || "gpt-4o-mini");
         setOpenaiBaseUrl(nextStatus.models.openaiBaseUrl || "https://api.openai.com/v1");
-        setOllamaModel(nextStatus.models.ollamaModel || "llama3.2");
-        setOllamaBaseUrl(nextStatus.models.ollamaBaseUrl || "http://127.0.0.1:11434/v1");
+        setOllamaModel(nextStatus.models.ollamaModel || "llama3.2:3b");
+        setOllamaBaseUrl(nextStatus.models.ollamaBaseUrl || "http://127.0.0.1:11434");
         setVoiceConsent(Boolean(nextStatus.render?.voiceConsent));
         setCinematicVeoEnabled(Boolean(nextStatus.render?.cinematicVeoEnabled ?? nextStatus.render?.cinematicVeo));
         if (nextStatus.brandKit) {
@@ -360,7 +362,7 @@ export default function SettingsPage() {
   };
 
   const handleTogglePreference = async (
-    key: "assemblePreviewEnabled" | "storyboardStillsEnabled" | "vimaxCompanionEnabled",
+    key: "assemblePreviewEnabled" | "storyboardStillsEnabled" | "vimaxCompanionEnabled" | "hermesCompanionEnabled",
     enabled: boolean,
   ) => {
     setIsSavingPreferences(true);
@@ -385,6 +387,9 @@ export default function SettingsPage() {
         vimaxCompanionEnabled: enabled
           ? "Companion folder export enabled (still does not spawn ViMax)"
           : "ViMax companion remains Off",
+        hermesCompanionEnabled: enabled
+          ? "Hermes digest enabled (still does not spawn Hermes)"
+          : "Hermes companion remains Off",
       };
       toast({
         title: labels[key],
@@ -457,8 +462,8 @@ export default function SettingsPage() {
       || openrouterModel !== (status.models.openrouterModel || "openrouter/auto")
       || openaiModel !== (status.models.openaiModel || "gpt-4o-mini")
       || openaiBaseUrl !== (status.models.openaiBaseUrl || "https://api.openai.com/v1")
-      || ollamaModel !== (status.models.ollamaModel || "llama3.2")
-      || ollamaBaseUrl !== (status.models.ollamaBaseUrl || "http://127.0.0.1:11434/v1")
+      || ollamaModel !== (status.models.ollamaModel || "llama3.2:3b")
+      || ollamaBaseUrl !== (status.models.ollamaBaseUrl || "http://127.0.0.1:11434")
       || elevenLabsVoiceId.trim() !== ""
       || voiceConsent !== Boolean(status.render?.voiceConsent)
       || cinematicVeoEnabled !== Boolean(status.render?.cinematicVeoEnabled ?? status.render?.cinematicVeo);
@@ -504,8 +509,8 @@ export default function SettingsPage() {
       setOpenrouterModel(response.status.models.openrouterModel || "openrouter/auto");
       setOpenaiModel(response.status.models.openaiModel || "gpt-4o-mini");
       setOpenaiBaseUrl(response.status.models.openaiBaseUrl || "https://api.openai.com/v1");
-      setOllamaModel(response.status.models.ollamaModel || "llama3.2");
-      setOllamaBaseUrl(response.status.models.ollamaBaseUrl || "http://127.0.0.1:11434/v1");
+      setOllamaModel(response.status.models.ollamaModel || "llama3.2:3b");
+      setOllamaBaseUrl(response.status.models.ollamaBaseUrl || "http://127.0.0.1:11434");
       if (youtubeKeyRef.current) youtubeKeyRef.current.value = "";
       if (geminiKeyRef.current) geminiKeyRef.current.value = "";
       if (openrouterKeyRef.current) openrouterKeyRef.current.value = "";
@@ -717,6 +722,23 @@ export default function SettingsPage() {
               data-testid="button-toggle-vimax-companion"
             >
               {status.preferences?.vimaxCompanionEnabled ? "On" : "Off"}
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/50 p-4">
+            <div>
+              <p className="text-sm font-medium">Hermes companion digest</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Optional Monday digest. Default Off. Cutroom never spawns Hermes. The digest is not product truth.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant={status.preferences?.hermesCompanionEnabled ? "default" : "outline"}
+              disabled={isSavingPreferences || Boolean(loadError)}
+              onClick={() => void handleTogglePreference("hermesCompanionEnabled", !status.preferences?.hermesCompanionEnabled)}
+              data-testid="button-toggle-hermes-companion"
+            >
+              {status.preferences?.hermesCompanionEnabled ? "On" : "Off"}
             </Button>
           </div>
         </CardContent>
@@ -1060,46 +1082,12 @@ export default function SettingsPage() {
               )}
 
               {aiProvider === "ollama" && (
-                <div className="space-y-3 rounded-lg border border-border bg-background/50 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <Label className="text-base">Ollama (local)</Label>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Uses the local OpenAI-compatible API. No cloud key required.
-                      </p>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className="border-green-500/40 bg-green-500/10 text-green-500"
-                    >
-                      Local
-                    </Badge>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="ollama-base-url">Base URL</Label>
-                      <Input
-                        id="ollama-base-url"
-                        value={ollamaBaseUrl}
-                        onChange={(event) => setOllamaBaseUrl(event.target.value)}
-                        placeholder="http://127.0.0.1:11434/v1"
-                        className="font-mono"
-                        data-testid="input-ollama-base-url"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="ollama-model">Model</Label>
-                      <Input
-                        id="ollama-model"
-                        value={ollamaModel}
-                        onChange={(event) => setOllamaModel(event.target.value)}
-                        placeholder="llama3.2"
-                        className="font-mono"
-                        data-testid="input-ollama-model"
-                      />
-                    </div>
-                  </div>
-                </div>
+                <OllamaPanel
+                  baseUrl={ollamaBaseUrl}
+                  model={ollamaModel}
+                  onBaseUrlChange={setOllamaBaseUrl}
+                  onModelChange={setOllamaModel}
+                />
               )}
 
               <KeyField

@@ -4,6 +4,7 @@
  * No generative video APIs.
  */
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { access, mkdir, mkdtemp, readFile, rm, writeFile, constants as fsConstants } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -18,7 +19,12 @@ import {
 import { getEnvFilePaths } from "./env-path";
 import { resolveWorkflowLibraryRoot, sanitizeTopicFolderName } from "./library-config";
 import { readPreferences } from "./preferences";
-import { getWorkflowTopicDirectory } from "./workflow-store";
+import {
+  ensureWorkflowTopicDirectory,
+  getWorkflowRecordFromDisk,
+  getWorkflowTopicDirectory,
+  isValidWorkflowId,
+} from "./workflow-store";
 
 export const assemblePreviewRequestSchema = z.object({
   topic: z.string().trim().min(1).max(500),
@@ -31,7 +37,7 @@ export const assemblePreviewRequestSchema = z.object({
   thumbnailDataUrl: z.string().max(12_000_000).optional(),
   workflowId: z.string().trim().min(1).max(120).optional(),
   workflowTitle: z.string().trim().max(120).optional(),
-}).strict();
+});
 
 export type AssemblePreviewRequest = z.infer<typeof assemblePreviewRequestSchema>;
 
@@ -266,7 +272,10 @@ export function runFfmpeg(bin: string, args: string[], cwd: string): Promise<voi
 
 async function resolveOutputPath(input: AssemblePreviewRequest): Promise<{ absolute: string; relative: string }> {
   if (input.workflowId) {
-    const topicDir = await getWorkflowTopicDirectory(input.workflowId);
+    const topicDir = await ensureWorkflowTopicDirectory({
+      id: input.workflowId,
+      title: input.workflowTitle || input.topic,
+    });
     if (topicDir) {
       await mkdir(topicDir, { recursive: true });
       return {
@@ -331,8 +340,35 @@ export async function muxAudioOntoVideo(options: {
   ], options.cwd);
 }
 
+/**
+ * Locate the card-rendering script in both run modes.
+ *
+ * Under tsx the module is ESM and sits beside the script in `server/`. In the
+ * production build it is bundled into a single CommonJS file, where
+ * `import.meta.url` is empty and the script is copied next to `dist/index.cjs`.
+ * Resolving from whichever marker the running format provides keeps one code
+ * path working for both.
+ */
+function resolveCardScript(): string {
+  const candidates: string[] = [];
+
+  // CommonJS bundle: __dirname is dist/.
+  if (typeof __dirname === "string" && __dirname) {
+    candidates.push(path.join(__dirname, "assemble-cards.py"));
+  }
+  // ESM under tsx: import.meta.url is the source file in server/.
+  const moduleUrl = import.meta?.url;
+  if (moduleUrl) {
+    candidates.push(path.join(path.dirname(fileURLToPath(moduleUrl)), "assemble-cards.py"));
+  }
+  // Last resort for an unbundled production start from the project root.
+  candidates.push(path.join(process.cwd(), "server", "assemble-cards.py"));
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+}
+
 function runPythonCard(args: string[]): Promise<void> {
-  const script = path.join(path.dirname(fileURLToPath(import.meta.url)), "assemble-cards.py");
+  const script = resolveCardScript();
   return new Promise((resolve, reject) => {
     const child = spawn("python3", [script, ...args], { stdio: ["ignore", "pipe", "pipe"] });
     let stderr = "";
@@ -467,32 +503,64 @@ export async function renderAssemblePreview(
   }
 }
 
-/** Absolute path to a workflow's mirrored preview.mp4, if present. */
-export async function resolveWorkflowPreviewPath(workflowId: string): Promise<string | null> {
-  if (!workflowId.trim()) return null;
-  const topicDir = await getWorkflowTopicDirectory(workflowId);
-  if (!topicDir) return null;
-  const candidate = path.join(topicDir, "preview.mp4");
+function isPathInsideRoot(root: string, filePath: string): boolean {
+  const resolvedRoot = path.resolve(root);
+  const resolvedFile = path.resolve(filePath);
+  const relative = path.relative(resolvedRoot, resolvedFile);
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+async function readableIfSafe(filePath: string, roots: string[]): Promise<string | null> {
+  const resolved = path.resolve(filePath);
+  if (!roots.some((root) => isPathInsideRoot(root, resolved))) return null;
   try {
-    await access(candidate, fsConstants.R_OK);
-    return candidate;
+    await access(resolved, fsConstants.R_OK);
+    return resolved;
   } catch {
     return null;
   }
 }
 
+function cachedPreviewPathFromState(state: unknown): string | undefined {
+  if (!state || typeof state !== "object") return undefined;
+  const cached = (state as { cachedPreview?: { path?: unknown } }).cachedPreview;
+  return typeof cached?.path === "string" && cached.path.trim() ? cached.path.trim() : undefined;
+}
+
+async function resolveWorkflowMediaPath(
+  workflowId: string,
+  filename: "preview.mp4" | "render.mp4",
+): Promise<string | null> {
+  if (!workflowId.trim() || !isValidWorkflowId(workflowId)) return null;
+  const { storageRoot } = await resolveWorkflowLibraryRoot();
+  const appRoot = getEnvFilePaths().root;
+  const roots = [storageRoot, appRoot];
+  const topicDir = await getWorkflowTopicDirectory(workflowId);
+  const candidates = [
+    topicDir ? path.join(topicDir, filename) : null,
+    path.join(storageRoot, "media", workflowId, filename),
+  ];
+  const record = await getWorkflowRecordFromDisk(workflowId);
+  const cachedPath = cachedPreviewPathFromState(record?.state);
+  if (cachedPath && cachedPath.replace(/\\/g, "/").endsWith(filename)) {
+    candidates.push(cachedPath);
+  }
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const hit = await readableIfSafe(candidate, roots);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** Absolute path to a workflow's mirrored preview.mp4, if present. */
+export async function resolveWorkflowPreviewPath(workflowId: string): Promise<string | null> {
+  return resolveWorkflowMediaPath(workflowId, "preview.mp4");
+}
+
 /** Absolute path to a workflow's render.mp4 (slides/cinematic), if present. */
 export async function resolveWorkflowRenderPath(workflowId: string): Promise<string | null> {
-  if (!workflowId.trim()) return null;
-  const topicDir = await getWorkflowTopicDirectory(workflowId);
-  if (!topicDir) return null;
-  const candidate = path.join(topicDir, "render.mp4");
-  try {
-    await access(candidate, fsConstants.R_OK);
-    return candidate;
-  } catch {
-    return null;
-  }
+  return resolveWorkflowMediaPath(workflowId, "render.mp4");
 }
 
 export async function getAssemblePreviewStatus(): Promise<{

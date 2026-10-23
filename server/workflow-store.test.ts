@@ -5,7 +5,9 @@ import path from "node:path";
 import { describe, test } from "node:test";
 import {
   deleteWorkflowRecordFromDisk,
+  ensureWorkflowTopicDirectory,
   getWorkflowRecordFromDisk,
+  getWorkflowTopicDirectory,
   isValidWorkflowId,
   listWorkflowRecordsFromDisk,
   parseWorkflowRecord,
@@ -94,6 +96,81 @@ describe("workflow store", () => {
       delete process.env.CUTROOM_APP_DATA;
       await rm(root, { recursive: true, force: true });
       await rm(library, { recursive: true, force: true });
+    }
+  });
+
+  test("ensureWorkflowTopicDirectory makes render.mp4 locatable by workflow id", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "cutroom-appdata-"));
+    const library = await mkdtemp(path.join(os.tmpdir(), "cutroom-library-"));
+    const previous = process.env.CUTROOM_APP_DATA;
+    try {
+      process.env.CUTROOM_APP_DATA = root;
+      await writeLibraryConfig(library, root);
+      const id = "cinematic-flow-id-001";
+      assert.equal(await getWorkflowTopicDirectory(id), null);
+      const dir = await ensureWorkflowTopicDirectory({ id, title: "Cinematic A+V" });
+      assert.ok(dir);
+      assert.equal(await getWorkflowTopicDirectory(id), dir);
+      await writeFile(path.join(dir!, "render.mp4"), "fake-mp4");
+      assert.equal(path.basename(dir!), sanitizeTopicFolderName("Cinematic A+V", id));
+    } finally {
+      if (previous === undefined) delete process.env.CUTROOM_APP_DATA;
+      else process.env.CUTROOM_APP_DATA = previous;
+      await rm(root, { recursive: true, force: true });
+      await rm(library, { recursive: true, force: true });
+    }
+  });
+
+  test("ensureWorkflowTopicDirectory does not wipe an existing record", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "cutroom-appdata-"));
+    const library = await mkdtemp(path.join(os.tmpdir(), "cutroom-library-"));
+    const previous = process.env.CUTROOM_APP_DATA;
+    try {
+      process.env.CUTROOM_APP_DATA = root;
+      await writeLibraryConfig(library, root);
+      const id = "keep-existing-state-01";
+      await putWorkflowRecordToDisk({
+        id,
+        createdAt: 1,
+        updatedAt: 2,
+        state: {
+          title: "Standing desk reviews",
+          cachedScript: { script: "# Keep me" },
+          cachedPackage: { publishPackage: { titles: [] } },
+        },
+      }, undefined, 8);
+      await ensureWorkflowTopicDirectory({ id, title: "Should not overwrite" });
+      const record = await getWorkflowRecordFromDisk(id);
+      assert.equal((record?.state as { cachedScript?: { script?: string } })?.cachedScript?.script, "# Keep me");
+    } finally {
+      if (previous === undefined) delete process.env.CUTROOM_APP_DATA;
+      else process.env.CUTROOM_APP_DATA = previous;
+      await rm(root, { recursive: true, force: true });
+      await rm(library, { recursive: true, force: true });
+    }
+  });
+
+  test("ensureWorkflowTopicDirectory keeps flat records and still has a media folder", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "cutroom-appdata-"));
+    const previous = process.env.CUTROOM_APP_DATA;
+    try {
+      process.env.CUTROOM_APP_DATA = root;
+      const id = "flat-keep-state-01";
+      await putWorkflowRecordToDisk({
+        id,
+        createdAt: 1,
+        updatedAt: 2,
+        state: { title: "Flat cinematic", cachedScript: { script: "# Keep flat" } },
+      }, undefined, 8);
+      const dir = await ensureWorkflowTopicDirectory({ id, title: "Should not overwrite" });
+      assert.ok(dir);
+      await writeFile(path.join(dir!, "render.mp4"), "flat-mp4");
+      const record = await getWorkflowRecordFromDisk(id);
+      assert.equal((record?.state as { cachedScript?: { script?: string } })?.cachedScript?.script, "# Keep flat");
+    } finally {
+      if (previous === undefined) delete process.env.CUTROOM_APP_DATA;
+      else process.env.CUTROOM_APP_DATA = previous;
+      await rm(root, { recursive: true, force: true });
     }
   });
 

@@ -75,6 +75,23 @@ export default {
           foreground: "hsl(var(--sidebar-accent-foreground) / <alpha-value>)",
           border: "var(--sidebar-accent-border)"
         },
+        // Semantic status colours. Previously hand-written utilities in index.css,
+        // which supported only the exact class names and not opacity modifiers.
+        success: {
+          DEFAULT: "hsl(var(--success) / <alpha-value>)",
+          foreground: "hsl(var(--success-foreground) / <alpha-value>)",
+          subtle: "hsl(var(--success) / 0.1)",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning) / <alpha-value>)",
+          foreground: "hsl(var(--warning-foreground) / <alpha-value>)",
+          subtle: "hsl(var(--warning) / 0.12)",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info) / <alpha-value>)",
+          foreground: "hsl(var(--info-foreground) / <alpha-value>)",
+          subtle: "hsl(var(--info) / 0.1)",
+        },
         status: {
           online: "rgb(34 197 94)",
           away: "rgb(245 158 11)",

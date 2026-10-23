@@ -110,6 +110,21 @@ describe("Gemini research response validation", () => {
     );
   });
 
+  test("grounds a dropped caption excerpt as an observed claim", () => {
+    const result = parseResearchInsightsResponse(
+      JSON.stringify(validResearchContent()),
+      "yt_12345678",
+      1,
+      "2026-08-24T10:00:00.000Z",
+      ["video-1"],
+      [{ videoId: "video-1", text: "Observed caption line about the cage printed in PETG." }],
+    );
+    const added = result.evidenceClaims.find((claim) => claim.claim.includes("PETG"));
+    assert.equal(added?.evidenceClass, "observed");
+    assert.deepEqual(added?.sourceVideoIds, ["video-1"]);
+    assert.equal(added?.snapshotId, "yt_12345678");
+  });
+
   test("rejects evidence that cites an unknown source video", () => {
     const content = validResearchContent();
     content.evidenceClaims[0].sourceVideoIds = ["unknown-video"];

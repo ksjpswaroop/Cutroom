@@ -22,6 +22,7 @@ import {
   type GeminiTextModel,
 } from "./gemini-models";
 import { MINIMAX_TEXT_MODEL, minimaxConfigured } from "./minimax";
+import { DEFAULT_OLLAMA_MODEL, ollamaModelName, ollamaRootUrl } from "./ollama";
 
 const SUPPORTED_KEYS = [
   "YOUTUBE_API_KEY",
@@ -220,9 +221,10 @@ export function getApiKeyStatus() {
       imageOptions: GEMINI_IMAGE_MODELS,
       openrouterModel: process.env.OPENROUTER_MODEL?.trim() || "openrouter/auto",
       openaiModel: process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini",
-      ollamaModel: process.env.OLLAMA_MODEL?.trim() || "llama3.2",
+      ollamaModel: ollamaModelName(),
       openaiBaseUrl: process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1",
-      ollamaBaseUrl: process.env.OLLAMA_BASE_URL?.trim() || "http://127.0.0.1:11434/v1",
+      ollamaBaseUrl: ollamaRootUrl(),
+      ollamaDefaultModel: DEFAULT_OLLAMA_MODEL,
       minimaxTextModel: process.env.MINIMAX_TEXT_MODEL?.trim() || MINIMAX_TEXT_MODEL,
     },
     render: {

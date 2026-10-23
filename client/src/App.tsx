@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ControllerGuide } from "@/components/controller-guide";
+import { ProviderIndicator } from "@/components/provider-indicator";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { WorkflowProvider, useWorkflow } from "@/lib/workflow-context";
@@ -64,6 +65,7 @@ function AppLayout() {
               <SidebarTrigger data-testid="button-sidebar-toggle" aria-label="Toggle sidebar" />
             </div>
             <div className="flex items-center gap-1">
+              <ProviderIndicator />
               <ControllerGuide />
               <ThemeToggle />
             </div>

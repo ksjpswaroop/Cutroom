@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useWorkflow } from "@/lib/workflow-context";
-import { exportProjectPack } from "@/lib/export-pack";
+import { exportProjectPack, fetchWorkflowMediaDataUrl } from "@/lib/export-pack";
+import { stripLeakedUndefined } from "@shared/workflow-history";
 
 interface PublishPackage {
   titles: { title: string; rationale: string; evidenceClass: string }[];
@@ -88,11 +89,13 @@ export default function PackagePage() {
     setProductionBrief((state.cachedPackage?.productionBrief as ProductionBrief | null) || null);
   }, [state.id, state.cachedPackage?.timestamp, state.cachedPackage?.publishPackage, state.cachedPackage?.productionBrief]);
 
-  const topic = state.idea?.selectedIdea?.title
+  const topic = stripLeakedUndefined(
+    state.idea?.selectedIdea?.title
     || state.cachedScript?.topic
     || state.cachedResearch?.query
     || state.cachedThumbnail?.topic
-    || "";
+    || "",
+  );
 
   const generatePackage = async () => {
     if (!topic.trim()) {
@@ -202,10 +205,14 @@ export default function PackagePage() {
         publishPackage,
         productionBrief,
         productionBoard: state.cachedBoard?.board,
+        previewDataUrl: await fetchWorkflowMediaDataUrl(state.id, "preview"),
+        renderDataUrl: await fetchWorkflowMediaDataUrl(state.id, "render"),
       });
       toast({
-        title: result.mode === "desktop" ? "Exported to folder" : "Download started",
-        description: result.path || "Project pack files were downloaded in the browser.",
+        title: result.mode === "desktop" ? "Exported to folder" : "Project pack downloaded",
+        description: result.path
+          ? (result.mode === "desktop" ? result.path : `Saved ${result.path} to your downloads folder.`)
+          : "Project pack files were downloaded.",
       });
     } catch (err: any) {
       setError(err?.message || "Export failed.");

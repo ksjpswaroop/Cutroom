@@ -335,3 +335,36 @@ export async function getWorkflowTopicDirectory(id: string): Promise<string | nu
   if (path.basename(located.filePath) === WORKFLOW_FILE) return located.dirPath;
   return null;
 }
+
+/** Create the topic folder + workflow.json so cinematic/slides render.mp4 is findable by workflow id. */
+export async function ensureWorkflowTopicDirectory(input: {
+  id: string;
+  title?: string;
+}): Promise<string | null> {
+  if (!isValidWorkflowId(input.id)) return null;
+  const existingDir = await getWorkflowTopicDirectory(input.id);
+  if (existingDir) return existingDir;
+
+  const existingRecord = await getWorkflowRecordFromDisk(input.id);
+  if (existingRecord) {
+    await putWorkflowRecordToDisk(existingRecord);
+  } else {
+    const now = Date.now();
+    const title = input.title?.trim() || "Untitled workflow";
+    await putWorkflowRecordToDisk({
+      id: input.id,
+      createdAt: now,
+      updatedAt: now,
+      state: { id: input.id, title, currentStep: "video" },
+    });
+  }
+
+  const arranged = await getWorkflowTopicDirectory(input.id);
+  if (arranged) return arranged;
+
+  const { storageRoot, arrangedByTopic } = await resolveWorkflowLibraryRoot();
+  if (arrangedByTopic) return null;
+  const mediaDir = path.join(storageRoot, "media", input.id);
+  await mkdir(mediaDir, { recursive: true });
+  return mediaDir;
+}

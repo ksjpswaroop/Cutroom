@@ -150,18 +150,29 @@ pub fn spawn_sidecar(app: &AppHandle, port: u16) -> Result<Child, String> {
     let node_env = if is_dev { "development" } else { "production" };
 
     let child = if is_dev {
-        let workspace_dir = env::current_dir()
+        // `tauri dev` runs cargo with the working directory set to src-tauri/,
+        // but the Node workspace (and node_modules) lives one level up. Walk
+        // upwards to find the directory that actually holds the dev sidecar so
+        // the app starts regardless of which directory the build was invoked from.
+        let start_dir = env::current_dir()
             .map_err(|e| format!("Failed to get current directory: {}", e))?;
-        
+        let workspace_dir = start_dir
+            .ancestors()
+            .find(|dir| {
+                dir.join("node_modules").join(".bin").join("tsx").exists()
+                    && dir.join("server").join("index.ts").exists()
+            })
+            .map(|dir| dir.to_path_buf())
+            .ok_or_else(|| {
+                format!(
+                    "Dev sidecar not found. Looked for node_modules/.bin/tsx and server/index.ts \
+                     in {:?} and its parents. Run 'npm install' in the project root.",
+                    start_dir
+                )
+            })?;
+
         let tsx_path = workspace_dir.join("node_modules").join(".bin").join("tsx");
         let server_entry = workspace_dir.join("server").join("index.ts");
-
-        if !tsx_path.exists() {
-            return Err(format!(
-                "tsx not found at {:?}. Run 'npm install' first.",
-                tsx_path
-            ));
-        }
 
         Command::new(&tsx_path)
             .arg(&server_entry)

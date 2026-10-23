@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Response } from "express";
 import { createServer, type Server } from "http";
 import {
   fetchCommentQuestionsForVideos,
@@ -7,6 +7,8 @@ import {
 } from "./youtube";
 import { getYouTubeQuotaUsage } from "./youtube-quota";
 import { generateScript, generateIdeas, generateResearchInsights, regenerateTitles, regenerateSection, regenerateParagraph, generateThumbnail, generateThumbnailSuggestions, extractNarrationText, generatePublishPackage, generateProductionBrief, generateProductionBoard, critiqueThumbnail } from "./gemini";
+import { inspectCompetitorThumbnailsWithGemini } from "./thumbnail-inspection";
+import { thumbnailInspectionRequestSchema } from "@shared/thumbnail-inspection";
 import {
   ideaGenerationRequestSchema,
   researchCaptionsRequestSchema,
@@ -19,6 +21,7 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import { apiKeySettingsSchema, getApiKeyStatusAsync, isLocalSettingsRequest, saveApiKeySettings } from "./settings";
+import { ollamaStatus } from "./ollama";
 import {
   clearLibraryConfig,
   librarySettingsSchema,
@@ -43,8 +46,6 @@ import {
   readBrandKit,
   writeBrandKit,
 } from "./brand-kit";
-import { createReadStream } from "node:fs";
-import { access as fsAccess, constants as fsConstants } from "node:fs/promises";
 import { clipBriefsFromScript } from "@shared/clip-briefs";
 import {
   calendarItemCreateSchema,
@@ -91,41 +92,18 @@ const workflowRecordSchema = z.object({
   state: z.unknown(),
 }).strict();
 
-function getUserFriendlyError(error: any, context: string): { message: string; suggestion: string } {
-  const errorMessage = error?.message?.toLowerCase() || "";
-
-  if (errorMessage.includes("api key") || errorMessage.includes("authentication") || errorMessage.includes("unauthorized")) {
-    return {
-      message: `${context} is temporarily unavailable`,
-      suggestion: "Please try again in a moment. If the problem persists, contact support."
-    };
-  }
-
-  if (errorMessage.includes("rate limit") || errorMessage.includes("quota") || errorMessage.includes("too many")) {
-    return {
-      message: `${context} is experiencing high demand`,
-      suggestion: "Please wait a minute and try again."
-    };
-  }
-
-  if (errorMessage.includes("timeout") || errorMessage.includes("timed out") || errorMessage.includes("network")) {
-    return {
-      message: `${context} took too long to respond`,
-      suggestion: "Please check your connection and try again."
-    };
-  }
-
-  if (errorMessage.includes("content") || errorMessage.includes("safety") || errorMessage.includes("blocked")) {
-    return {
-      message: `${context} couldn't process this content`,
-      suggestion: "Try rephrasing your request or using different keywords."
-    };
-  }
-
-  return {
-    message: `${context} encountered an issue`,
-    suggestion: "Please try again. If the problem persists, try refreshing the page."
-  };
+function sendWorkflowMp4(res: Response, filePath: string, missingLabel: string) {
+  res.setHeader("Cache-Control", "no-store");
+  return res.sendFile(filePath, {
+    headers: {
+      "Content-Type": "video/mp4",
+      "Cache-Control": "no-store",
+    },
+  }, (error) => {
+    if (!error || res.headersSent) return;
+    console.error(`${missingLabel} file error:`, error);
+    res.status(500).json({ error: `Unable to read ${missingLabel}.` });
+  });
 }
 
 export async function registerRoutes(
@@ -152,6 +130,26 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Settings status error:", error);
       return res.status(500).json({ error: "Unable to load settings." });
+    }
+  });
+
+  /**
+   * Local model discovery. Settings uses this to show which models are actually
+   * installed rather than asking the user to type a model name blind, and to
+   * report plainly when the daemon is not running.
+   */
+  app.get("/api/ai/ollama/status", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Settings are available only from this machine." });
+    }
+    try {
+      const baseUrl = typeof req.query.baseUrl === "string" ? req.query.baseUrl : undefined;
+      const model = typeof req.query.model === "string" ? req.query.model : undefined;
+      return res.json(await ollamaStatus({ baseUrl, model }));
+    } catch (error) {
+      console.error("Ollama status error:", error);
+      return res.status(500).json({ error: "Unable to query the local model daemon." });
     }
   });
 
@@ -337,9 +335,7 @@ export async function registerRoutes(
     try {
       const previewPath = await resolveWorkflowPreviewPath(req.params.id);
       if (!previewPath) return res.status(404).json({ error: "No preview.mp4 for this workflow yet." });
-      await fsAccess(previewPath, fsConstants.R_OK);
-      res.setHeader("Content-Type", "video/mp4");
-      createReadStream(previewPath).pipe(res);
+      return sendWorkflowMp4(res, previewPath, "preview.mp4");
     } catch (error) {
       console.error("Preview file error:", error);
       return res.status(500).json({ error: "Unable to read preview.mp4." });
@@ -357,9 +353,7 @@ export async function registerRoutes(
     try {
       const renderPath = await resolveWorkflowRenderPath(req.params.id);
       if (!renderPath) return res.status(404).json({ error: "No render.mp4 for this workflow yet." });
-      await fsAccess(renderPath, fsConstants.R_OK);
-      res.setHeader("Content-Type", "video/mp4");
-      createReadStream(renderPath).pipe(res);
+      return sendWorkflowMp4(res, renderPath, "render.mp4");
     } catch (error) {
       console.error("Render file error:", error);
       return res.status(500).json({ error: "Unable to read render.mp4." });
@@ -499,6 +493,25 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/research/thumbnail-inspection", rateLimit, async (req, res) => {
+    try {
+      const parsed = thumbnailInspectionRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "A snapshot and between 1 and 50 videos with thumbnail URLs are required.",
+          code: "THUMBNAIL_INSPECTION_REQUEST_INVALID",
+          details: parsed.error.errors,
+        });
+      }
+      const result = await inspectCompetitorThumbnailsWithGemini(parsed.data);
+      res.json(result);
+    } catch (error: unknown) {
+      console.error("Thumbnail inspection error:", error);
+      const providerError = normalizeProviderError(error, "gemini");
+      res.status(providerError.status).json(providerErrorPayload(providerError, "Thumbnail inspection"));
+    }
+  });
+
   app.post("/api/research/comment-questions", rateLimit, async (req, res) => {
     try {
       const parsed = researchCommentQuestionsRequestSchema.safeParse(req.body);
@@ -527,10 +540,10 @@ export async function registerRoutes(
       const input = res.locals.validatedBody as z.infer<typeof scriptInputSchema>;
       const result = await generateScript(input);
       res.json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Script generation error:", error);
-      const friendly = getUserFriendlyError(error, "Script generation");
-      res.status(500).json({ error: friendly.message, suggestion: friendly.suggestion });
+      const providerError = normalizeProviderError(error, "provider");
+      res.status(providerError.status).json(providerErrorPayload(providerError, "Script generation"));
     }
   });
 
@@ -544,8 +557,8 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid narration extraction request", details: error.errors });
       }
-      const friendly = getUserFriendlyError(error, "Narration extraction");
-      res.status(500).json({ error: friendly.message, suggestion: friendly.suggestion });
+      const providerError = normalizeProviderError(error, "provider");
+      res.status(providerError.status).json(providerErrorPayload(providerError, "Narration extraction"));
     }
   });
 
@@ -605,8 +618,8 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid title regeneration request", details: error.errors });
       }
-      const friendly = getUserFriendlyError(error, "Title regeneration");
-      res.status(500).json({ error: friendly.message, suggestion: friendly.suggestion });
+      const providerError = normalizeProviderError(error, "provider");
+      res.status(providerError.status).json(providerErrorPayload(providerError, "Title regeneration"));
     }
   });
 

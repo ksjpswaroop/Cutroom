@@ -1,0 +1,20 @@
+{
+  "name": "cutroom-launch-video",
+  "private": true,
+  "type": "module",
+  "description": "Remotion side project for the Cutroom launch video. Not part of the desktop app.",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts LaunchVideo out/launch-video.mp4"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.372"
+  },
+  "devDependencies": {
+    "@remotion/cli": "4.0.372",
+    "@types/react": "18.3.18",
+    "typescript": "5.6.3"
+  }
+}

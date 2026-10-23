@@ -95,10 +95,42 @@ You can instead start without keys and enter them in **Settings**. Settings writ
 | `GEMINI_API_KEY` | Gemini text and image generation | Required for AI features |
 | `GEMINI_TEXT_MODEL` | Research, Ideas, Script, and regeneration model | `gemini-3.7-flash` |
 | `GEMINI_IMAGE_MODEL` | Thumbnail generation model | `gemini-3.1-flash-image` |
+| `CUTROOM_AI_PROVIDER` | Text provider: `gemini`, `ollama`, `openrouter`, `openai_compatible`, `minimax` | `gemini` |
+| `OLLAMA_BASE_URL` | Ollama daemon address | `http://127.0.0.1:11434` |
+| `OLLAMA_MODEL` | Local model, tag included | `llama3.2:3b` |
+| `OLLAMA_TIMEOUT_MS` | Budget for one local completion, allowing for cold model load | `180000` |
+| `CUTROOM_AI_TIMEOUT_MS` | Budget for one hosted-provider completion | `120000` |
 | `PORT` | Local HTTP port | `5000` |
 | `HOST` | Bind address | `127.0.0.1` |
 
 The Settings page exposes the server allowlist and its current descriptions. Models are not hardcoded by the client. Changing the allowlist in `server/gemini-models.ts` changes the available Settings options.
+
+## Local AI with Ollama
+
+Cutroom can run its text generation entirely on your machine. There is no API
+key, no per-token cost, and no prompt content leaves the device.
+
+1. Install [Ollama](https://ollama.com/download) and start it with `ollama serve`.
+2. Pull a model: `ollama pull llama3.2:3b`. Model names always include a tag —
+   `llama3.2` on its own is not a valid tag and the daemon will reject it.
+3. In Settings, choose **Ollama (local)** as the AI text provider.
+
+Settings queries the daemon directly, so it shows whether Ollama is running and
+lists the models actually installed rather than asking you to type a name. If
+the configured model is missing it names the closest installed match and offers
+to switch to it. The header shows which provider is active, and warns when a
+local daemon that was running has stopped.
+
+Local models are noticeably weaker at holding a strict output schema than hosted
+ones. Cutroom compensates: responses are recovered from markdown fences, prose
+preambles and reasoning blocks; predictable shape mistakes are corrected before
+validation; and a failed response is re-prompted with the exact field that
+failed. Because local inference is free and fast, it retries more times than a
+billed provider does.
+
+A 3B model is enough for scripts and titles. Larger local models (for example
+`gpt-oss:20b`) follow the evidence structure more closely, at the cost of speed
+and memory. Hosted providers remain the default and stay available per workflow.
 
 ## Data and request limits
 

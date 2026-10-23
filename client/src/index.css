@@ -343,45 +343,7 @@
     }
   }
 
-  .text-info {
-    color: hsl(var(--info));
-  }
-
-  .text-success {
-    color: hsl(var(--success));
-  }
-
-  .text-warning {
-    color: hsl(var(--warning));
-  }
-
-  .bg-info-subtle {
-    background: hsl(var(--info) / 0.1);
-  }
-
-  .bg-success-subtle {
-    background: hsl(var(--success) / 0.1);
-  }
-
-  .bg-success {
-    background: hsl(var(--success));
-  }
-
-  .bg-warning-subtle {
-    background: hsl(var(--warning) / 0.12);
-  }
-
-  .border-info-subtle {
-    border-color: hsl(var(--info) / 0.3);
-  }
-
-  .border-success-subtle {
-    border-color: hsl(var(--success) / 0.3);
-  }
-
-  .border-warning-subtle {
-    border-color: hsl(var(--warning) / 0.32);
-  }
+  /* Status colours (success / warning / info) are Tailwind tokens; see tailwind.config.ts. */
 
   .dashboard-container {
     margin-inline: auto;

@@ -23,8 +23,13 @@ export interface WorkflowHistorySummary {
   hasBoard?: boolean;
 }
 
+/** Models and string concat sometimes leak the JS tokens `undefined`/`null` onto titles. */
+export function stripLeakedUndefined(value: string): string {
+  return value.replace(/(?:undefined|null)+$/gi, "").replace(/\s+/g, " ").trim();
+}
+
 export function normalizeCustomWorkflowTitle(value: string): string | null {
-  const normalized = value.trim().replace(/\s+/g, " ");
+  const normalized = stripLeakedUndefined(value);
   if (!normalized) return null;
   return normalized.slice(0, WORKFLOW_TITLE_LIMIT).trimEnd();
 }
@@ -35,8 +40,8 @@ export function deriveWorkflowTitle(signals: WorkflowTitleSignals): string {
     signals.scriptTitle,
     signals.scriptTopic,
     signals.thumbnailTopic,
-  ];
-  const selected = candidates.find((candidate) => candidate?.trim())?.trim();
+  ].map((candidate) => (typeof candidate === "string" ? stripLeakedUndefined(candidate) : ""));
+  const selected = candidates.find((candidate) => candidate.length > 0);
   if (!selected) return "Untitled workflow";
   return selected.length > WORKFLOW_TITLE_LIMIT
     ? `${selected.slice(0, WORKFLOW_TITLE_LIMIT - 1).trimEnd()}…`

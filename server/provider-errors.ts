@@ -23,7 +23,14 @@ export class ProviderError extends Error {
   }
 }
 
-type ProviderErrorContext = "youtube" | "gemini";
+type ProviderErrorContext = "youtube" | "gemini" | "provider";
+
+/**
+ * Provider error codes whose message names a specific, user-fixable cause
+ * (a model that is not pulled, a daemon that is not running) rather than
+ * restating the category. Those messages are worth more than the generic copy.
+ */
+const ACTIONABLE_CODE_PATTERN = /^(OLLAMA|OPENROUTER|OPENAI|MINIMAX|GEMINI)_/;
 
 function categoryFromMessage(message: string): ProviderErrorCategory {
   const normalized = message.toLowerCase();
@@ -116,10 +123,19 @@ export function providerErrorPayload(error: ProviderError, contextLabel: string)
     },
   };
 
+  const base = copy[error.category];
+  // Surface the provider's own wording when it identifies the actual fault.
+  // The generic category copy cannot name a missing model or a stopped daemon.
+  const detail = ACTIONABLE_CODE_PATTERN.test(error.code) && error.message.trim()
+    ? error.message.trim()
+    : undefined;
+
   return {
-    ...copy[error.category],
+    ...base,
+    ...(detail ? { error: detail } : {}),
     code: error.code,
     category: error.category,
     retryable: error.retryable,
+    ...(detail ? { detail } : {}),
   };
 }

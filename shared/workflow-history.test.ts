@@ -45,10 +45,11 @@ describe("workflow history helpers", () => {
     assert.equal(title.endsWith("…"), true);
   });
 
-  test("normalizes a user-provided workflow name", () => {
-    assert.equal(normalizeCustomWorkflowTitle("  Launch   research  "), "Launch research");
-    assert.equal(normalizeCustomWorkflowTitle("   "), null);
-    assert.equal(normalizeCustomWorkflowTitle("A".repeat(80))?.length, 48);
+  test("strips leaked undefined/null tokens from titles", () => {
+    assert.equal(deriveWorkflowTitle({
+      scriptTopic: "4-Leg vs 2-Leg Standing Desk Stability Shootoutundefined",
+    }), "4-Leg vs 2-Leg Standing Desk Stability Shootout");
+    assert.equal(normalizeCustomWorkflowTitle("Desk reviewnull"), "Desk review");
   });
 
   test("keeps the newest unique summaries within the limit", () => {

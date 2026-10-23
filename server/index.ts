@@ -4,6 +4,26 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { getEnvFilePaths } from "./env-path";
 
+/**
+ * Process-level safety net.
+ *
+ * This server runs as the sidecar behind the desktop app, where an unhandled
+ * rejection taking the process down does not surface as an error — the window
+ * simply stops responding. A background provider call that rejects must not be
+ * able to do that, so rejections are logged and survived. An uncaught exception
+ * leaves genuinely unknown state, so it is logged and the process still exits,
+ * which lets the host restart it cleanly.
+ */
+process.on("unhandledRejection", (reason) => {
+  const detail = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
+  log(`unhandled promise rejection (continuing): ${detail}`, "process");
+});
+
+process.on("uncaughtException", (error) => {
+  log(`uncaught exception, shutting down: ${error.stack ?? error.message}`, "process");
+  process.exit(1);
+});
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -114,6 +134,33 @@ app.use((req, res, next) => {
   const host = process.env.HOST || "127.0.0.1";
   const { root } = getEnvFilePaths();
   const secretsBackend = await (await import("./keychain")).resolveSecretsBackend();
+  // A port collision is the most common launch failure and its raw stack says
+  // nothing useful; name the port and who to blame instead.
+  httpServer.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code === "EADDRINUSE") {
+      log(`fatal: port ${port} on ${host} is already in use. Stop the other process or set PORT.`, "process");
+    } else if (error.code === "EACCES") {
+      log(`fatal: not permitted to bind ${host}:${port}. Choose a port above 1024 via PORT.`, "process");
+    } else {
+      log(`fatal: server error: ${error.message}`, "process");
+    }
+    process.exit(1);
+  });
+
+  // Close in-flight connections before exiting so the desktop host can restart
+  // the sidecar without leaving a half-written render or a stale listener.
+  let shuttingDown = false;
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.on(signal, () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      log(`received ${signal}, shutting down`, "process");
+      httpServer.close(() => process.exit(0));
+      // Do not let a hung keep-alive connection block exit indefinitely.
+      setTimeout(() => process.exit(0), 5_000).unref();
+    });
+  }
+
   httpServer.listen(
     {
       port,
@@ -123,4 +170,8 @@ app.use((req, res, next) => {
       log(`serving on ${host}:${port} (secrets root: ${root}; secrets: ${secretsBackend})`);
     },
   );
-})();
+})().catch((error: unknown) => {
+  const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+  log(`fatal: server failed to start: ${detail}`, "process");
+  process.exit(1);
+});

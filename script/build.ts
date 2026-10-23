@@ -1,6 +1,6 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { cp, rm, readFile } from "fs/promises";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -37,6 +37,13 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
   });
+
+  // The card renderer is invoked as a separate python3 process, so it is not
+  // part of the bundle and has to be copied alongside it. Without this the
+  // assemble-preview feature fails in packaged builds while working in dev,
+  // where the script still sits next to its TypeScript caller.
+  console.log("copying runtime assets...");
+  await cp("server/assemble-cards.py", "dist/assemble-cards.py");
 }
 
 buildAll().catch((err) => {

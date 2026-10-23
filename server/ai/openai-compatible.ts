@@ -1,4 +1,5 @@
 import { ProviderError } from "../provider-errors";
+import { extractJsonText } from "./json-extract";
 import type {
   AiJsonCompletionRequest,
   AiJsonCompletionResult,
@@ -20,6 +21,12 @@ interface OpenAiCompatibleConfig {
 
 function trimSlash(url: string): string {
   return url.replace(/\/+$/, "");
+}
+
+/** Bound every provider call so a stalled gateway cannot hang a request. */
+function requestTimeoutMs(): number {
+  const parsed = Number.parseInt(process.env.CUTROOM_AI_TIMEOUT_MS ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 120_000;
 }
 
 /**
@@ -59,6 +66,7 @@ export function createOpenAiCompatibleTextProvider(
         response = await fetch(url, {
           method: "POST",
           headers,
+          signal: AbortSignal.timeout(requestTimeoutMs()),
           body: JSON.stringify({
             model,
             messages: [
@@ -74,11 +82,14 @@ export function createOpenAiCompatibleTextProvider(
           }),
         });
       } catch (error: any) {
+        const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
         throw new ProviderError({
-          message: `${config.label} request failed to connect (${error?.message || "network error"}).`,
-          category: "network",
-          code: `${config.id.toUpperCase()}_NETWORK`,
-          status: 502,
+          message: timedOut
+            ? `${config.label} did not respond within ${Math.round(requestTimeoutMs() / 1000)}s.`
+            : `${config.label} request failed to connect (${error?.message || "network error"}).`,
+          category: timedOut ? "timeout" : "network",
+          code: `${config.id.toUpperCase()}_${timedOut ? "TIMEOUT" : "NETWORK"}`,
+          status: timedOut ? 504 : 502,
           retryable: true,
         });
       }
@@ -123,8 +134,10 @@ export function createOpenAiCompatibleTextProvider(
         });
       }
 
+      // Gateways in front of open-weight models return fenced or prefixed JSON
+      // often enough that recovery has to happen here, not at each call site.
       return {
-        text: text.trim(),
+        text: extractJsonText(text),
         providerId: config.id,
         model,
       };
@@ -145,17 +158,6 @@ export function createOpenRouterTextProvider(): AiTextProvider {
       "HTTP-Referer": "https://github.com/ksjpswaroop/Cutroom",
       "X-Title": "Cutroom",
     },
-  });
-}
-
-export function createOllamaTextProvider(): AiTextProvider {
-  return createOpenAiCompatibleTextProvider({
-    id: "ollama",
-    label: "Ollama",
-    apiKey: process.env.OLLAMA_API_KEY,
-    baseUrl: process.env.OLLAMA_BASE_URL?.trim() || "http://127.0.0.1:11434/v1",
-    defaultModel: process.env.OLLAMA_MODEL?.trim() || "llama3.2",
-    allowMissingKey: true,
   });
 }
 

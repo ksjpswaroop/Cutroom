@@ -97,8 +97,8 @@ Product strategy baseline: [docs/STRATEGY.md](docs/STRATEGY.md), [docs/RELEASE_P
 | L-410 | done | macOS notarization complete + Gatekeeper green (`spctl` Notarized Developer ID; stapled app+DMG) |
 | L-411 | done | Windows binary smoke — `cutroom-windows-x86_64.exe` cross-built via cargo-xwin; on GitHub Release v2.0.0 (unsigned; NSIS/MSI need Windows host/CI) |
 | L-412 | done | Linux AppImage/deb smoke — `cutroom_2.0.0_arm64.deb` + `cutroom-linux-aarch64` on GitHub Release v2.0.0 |
-| L-413 | todo | Caption-grounded Insights with cheap/local models (after L-608 YouTube-captions path) |
-| L-414 | todo | Comment mine follow-up if L-609 needs local/cheap-model fallback |
+| L-413 | done | Caption-grounded Insights with cheap/local models: dropped public excerpts are reattached as observed claims, and non-Gemini prompts get a compact caption instruction (`shared/caption-grounding.ts`) |
+| L-414 | done | Comment mine follow-up: if a model drops mined public questions, the package keeps the phrasing labeled as an observed comment, not demand (`shared/comment-mine-fallback.ts`) |
 | L-415 | cancelled | Replace Node sidecar with Hermes — rejected; see L-404 |
 
 ## Phase 5 — Next major themes (v1.3 → v2.0)
@@ -112,7 +112,7 @@ Product strategy baseline: [docs/STRATEGY.md](docs/STRATEGY.md), [docs/RELEASE_P
 | L-505 | done | Shorts/clip briefs (L-313) — inferred section→clip cards; no renderer |
 | L-506 | done | Optional Studio OAuth mirror with strict labeling (L-314) |
 | L-507 | done | Auto-updater endpoint live (GitHub `latest.json` + Settings check) |
-| L-508 | todo | Optional Hermes *companion* experiment (cron digest only; off by default) |
+| L-508 | done | Optional Hermes companion: Monday cron digest only, Settings default Off, never spawns Hermes, not product truth (`server/hermes-companion.ts`, `docs/experiments/hermes-companion.md`) |
 
 ## Phase 6 — Cutroom v0.2
 
@@ -177,11 +177,11 @@ Keep **Evidence ledger** as the Insights feature name. Do not add a fifth resear
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-616 | todo | Competitor thumbnail inspection: Gemini vision on top N snapshot thumbs; claims labeled inferred |
-| L-617 | todo | Script evidence overlay: highlight on-promise / tangent / unsupported sentences (same graph as L-604) |
+| L-616 | done | Competitor thumbnail inspection: Gemini vision on the top 5 snapshot thumbs; claims must be inferred (`/api/research/thumbnail-inspection`) |
+| L-617 | done | Script evidence overlay: on-promise / tangent / unsupported sentences from the L-604 throughline graph |
 | L-618 | done | Channel-first Research: `search.list` with `channelId` (thin slice of L-311) |
-| L-619 | todo | Export buttons: show Insights… / Ideas… while pipeline runs; stop saying “PDF/XLS/CSV waiting” |
-| L-620 | todo | Launch-video Remotion **side project** from `docs/launch-video/` (not an in-app renderer) |
+| L-619 | done | Export buttons show Insights… / Ideas… while that stage runs, and Download/Building once it is clear |
+| L-620 | done | Launch-video Remotion side project in `launch-video/` (shot-list timeline, not an in-app route) |
 
 ### Non-goals for v0.2
 

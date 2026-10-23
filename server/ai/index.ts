@@ -3,8 +3,8 @@ import { createGeminiImageProvider } from "./gemini-image-adapter";
 import { createMiniMaxTextProvider } from "./minimax-adapter";
 import { createMiniMaxImageProvider } from "./minimax-image-adapter";
 import { createOllamaImageProvider } from "./ollama-image-adapter";
+import { createOllamaTextProvider } from "./ollama-adapter";
 import {
-  createOllamaTextProvider,
   createOpenAiCompatibleEnvProvider,
   createOpenRouterTextProvider,
 } from "./openai-compatible";

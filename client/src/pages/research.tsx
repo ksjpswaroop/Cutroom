@@ -34,6 +34,7 @@ import { StarryBackground } from "@/components/ui/starry-background";
 import type { IdeaGenerationResponse, IdeaPackage, Video, SearchResponse, ResearchInsightsResponse } from "@shared/schema";
 import { UploadDateFilter, DurationFilter, SortBy } from "@shared/schema";
 import { calculateYouTubeAnalytics } from "@/lib/youtube-analytics";
+import { researchExportButtonLabel, researchExportPipelineMessage } from "@shared/research-export-labels";
 
 type ResearchInsights = ResearchInsightsResponse;
 
@@ -310,6 +311,11 @@ export default function ResearchDashboard() {
   const [captionsStatus, setCaptionsStatus] = useState<string | null>(null);
   const [commentsStatus, setCommentsStatus] = useState<string | null>(null);
   const [depthError, setDepthError] = useState<string | null>(null);
+  const [thumbnailInspection, setThumbnailInspection] = useState<{
+    claims: Array<{ id: string; claim: string; evidenceClass: string; limitations: string[] }>;
+  } | null>(null);
+  const [thumbnailInspectionError, setThumbnailInspectionError] = useState<string | null>(null);
+  const [thumbnailInspectionLoading, setThumbnailInspectionLoading] = useState(false);
   const [youtubeQuota, setYoutubeQuota] = useState<YouTubeQuotaUsage | null>(null);
   const insightsFetchedRef = useRef<string>("");
   const ideasFetchedRef = useRef<string>("");
@@ -443,6 +449,8 @@ export default function ResearchDashboard() {
     setDepthSelectedIds(new Set());
     setCaptionExcerpts([]);
     setAudienceQuestions([]);
+    setThumbnailInspection(null);
+    setThumbnailInspectionError(null);
     setMinedCommentQuestions([]);
     setCaptionsStatus(null);
     setCommentsStatus(null);
@@ -539,6 +547,8 @@ export default function ResearchDashboard() {
     setDepthSelectedIds(new Set());
     setCaptionExcerpts([]);
     setAudienceQuestions([]);
+    setThumbnailInspection(null);
+    setThumbnailInspectionError(null);
     setMinedCommentQuestions([]);
     setCaptionsStatus(null);
     setCommentsStatus(null);
@@ -775,6 +785,8 @@ export default function ResearchDashboard() {
       setDepthSelectedIds(new Set());
       setCaptionExcerpts([]);
       setAudienceQuestions([]);
+      setThumbnailInspection(null);
+      setThumbnailInspectionError(null);
       setMinedCommentQuestions([]);
       setCaptionsStatus(null);
       setCommentsStatus(null);
@@ -932,6 +944,46 @@ export default function ResearchDashboard() {
       setCommentsLoading(false);
     }
   }, [sourceData, commentsLoading, depthSelectedIds, refreshYouTubeQuota, insights]);
+
+  const handleInspectThumbnails = useCallback(async () => {
+    if (!sourceData?.videos.length || !sourceData.snapshotId || thumbnailInspectionLoading) return;
+    setThumbnailInspectionLoading(true);
+    setThumbnailInspectionError(null);
+    try {
+      const response = await fetch("/api/research/thumbnail-inspection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          snapshotId: sourceData.snapshotId,
+          videos: sourceData.videos.map((video) => ({
+            id: video.id,
+            title: video.title,
+            thumbnailUrl: video.thumbnailUrl,
+            ...(typeof video.viewCount === "number" ? { viewCount: video.viewCount } : {}),
+          })),
+        }),
+      });
+      if (!response.ok) throw await readApiError(response);
+      const result = await response.json() as {
+        claims?: Array<{ id: string; claim: string; evidenceClass: string; limitations: string[] }>;
+      };
+      setThumbnailInspection({ claims: result.claims || [] });
+    } catch (requestError) {
+      const normalizedError = requestError instanceof ResearchRequestError
+        ? requestError
+        : new ResearchRequestError({
+            message: requestError instanceof Error ? requestError.message : "Thumbnail inspection failed.",
+            status: 0,
+            category: typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "unknown",
+            retryable: true,
+          });
+      setThumbnailInspection(null);
+      setThumbnailInspectionError(normalizedError.suggestion || normalizedError.message);
+    } finally {
+      setThumbnailInspectionLoading(false);
+    }
+  }, [sourceData, thumbnailInspectionLoading]);
 
   const toggleQuestion = (index: number) => {
     setExpandedQuestions(prev => {
@@ -1101,6 +1153,8 @@ export default function ResearchDashboard() {
     setDepthSelectedIds(new Set());
     setCaptionExcerpts([]);
     setAudienceQuestions([]);
+    setThumbnailInspection(null);
+    setThumbnailInspectionError(null);
     setMinedCommentQuestions([]);
     setCaptionsStatus(null);
     setCommentsStatus(null);
@@ -1147,6 +1201,18 @@ export default function ResearchDashboard() {
     && !ideasLoading,
   );
   const exportDisabled = !exportReady || exporting !== null;
+  const exportLabelState = {
+    searching: showLoading,
+    insightsLoading,
+    ideasLoading,
+    hasResults: Boolean(hasResults),
+    hasInsights: Boolean(insights),
+    insightsFailed: Boolean(insightsError),
+    ideaCount: ideaPackages.length,
+    ideasFailed: Boolean(ideasError),
+    exporting,
+  };
+  const exportPipelineMessage = researchExportPipelineMessage({ ...exportLabelState, format: "pdf" });
 
   return (
     <ScrollArea className="h-full">
@@ -1303,7 +1369,7 @@ export default function ResearchDashboard() {
                     ) : (
                       <Download className="h-4 w-4 mr-2" />
                     )}
-                    {exportPipelineLoading ? "PDF waiting" : exporting === "pdf" ? "Building PDF" : "Download PDF"}
+                    {researchExportButtonLabel({ ...exportLabelState, format: "pdf" })}
                   </Button>
                   <Button
                     variant="outline"
@@ -1317,7 +1383,7 @@ export default function ResearchDashboard() {
                     ) : (
                       <FileSpreadsheet className="h-4 w-4 mr-2" />
                     )}
-                    {exportPipelineLoading ? "XLS waiting" : exporting === "xls" ? "Building XLS" : "Download XLS"}
+                    {researchExportButtonLabel({ ...exportLabelState, format: "xls" })}
                   </Button>
                   <Button
                     variant="outline"
@@ -1331,7 +1397,20 @@ export default function ResearchDashboard() {
                     ) : (
                       <Table2 className="h-4 w-4 mr-2" />
                     )}
-                    {exportPipelineLoading ? "CSV waiting" : exporting === "csv" ? "Building CSV" : "Download CSV"}
+                    {researchExportButtonLabel({ ...exportLabelState, format: "csv" })}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleInspectThumbnails()}
+                    disabled={thumbnailInspectionLoading || !sourceData?.snapshotId}
+                    data-testid="button-inspect-thumbnails"
+                  >
+                    {thumbnailInspectionLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                    )}
+                    {thumbnailInspectionLoading ? "Inspecting…" : "Inspect thumbnails"}
                   </Button>
                   {insightsError && (
                     <Button onClick={handleContinueWithoutAI} className="gap-1" data-testid="button-continue-without-ai">
@@ -1342,10 +1421,37 @@ export default function ResearchDashboard() {
                 </div>
               </div>
 
-              {exportPipelineLoading && (
+              {exportPipelineMessage && (
                 <p id="export-pipeline-status" className="text-xs text-muted-foreground" role="status" aria-live="polite">
-                  Complete exports unlock automatically after AI Insights and Grounded Ideas finish for this snapshot.
+                  {exportPipelineMessage}
                 </p>
+              )}
+
+              {thumbnailInspectionError && (
+                <Alert data-testid="alert-thumbnail-inspection">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Thumbnail inspection is unavailable</AlertTitle>
+                  <AlertDescription>{thumbnailInspectionError}</AlertDescription>
+                </Alert>
+              )}
+
+              {thumbnailInspection && thumbnailInspection.claims.length > 0 && (
+                <Card data-testid="thumbnail-inspection-claims">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Competitor thumbnail inspection</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {thumbnailInspection.claims.map((claim) => (
+                      <div key={claim.id} className="rounded-lg border border-border p-3">
+                        <Badge variant="outline">Inferred</Badge>
+                        <p className="mt-2 text-sm">{claim.claim}</p>
+                        {claim.limitations[0] && (
+                          <p className="mt-1 text-xs text-muted-foreground">{claim.limitations[0]}</p>
+                        )}
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
               )}
 
               {exportError && (

@@ -43,6 +43,8 @@ import { StarryBackground } from "@/components/ui/starry-background";
 import { VideoFormat, TargetAudience, CreatorPersona, scriptInputSchema, type ScriptInput, type ScriptResult } from "@shared/schema";
 import type { EvidenceClaim } from "@shared/schema";
 import { buildThroughlineGraph, checkThroughline } from "@shared/throughline";
+import { markScriptEvidence } from "@shared/script-evidence-overlay";
+import { stripLeakedUndefined } from "@shared/workflow-history";
 
 const formatOptions = [
   { value: VideoFormat.SHORT, label: "YouTube Short (< 60 sec)", icon: "60s" },
@@ -101,7 +103,7 @@ interface ScriptActionError {
 /** Keep form text fields as real strings; strip accidental `undefined`/`null` suffixes. */
 function asFormText(value: unknown): string {
   if (typeof value !== "string") return "";
-  return value.replace(/(?:undefined|null)$/g, "").trimEnd();
+  return stripLeakedUndefined(value);
 }
 
 function providerAwareScriptError(error: unknown, fallback: string): string {
@@ -1187,7 +1189,24 @@ export default function ScriptPage() {
       ideaClaimIds: ideaPackage?.evidenceClaims.map((claim) => claim.id),
     });
 
-    return { graph, checks: checkThroughline(graph) };
+    return {
+      graph,
+      checks: checkThroughline(graph),
+      overlay: markScriptEvidence({
+        topic: watchedTopic?.trim() || undefined,
+        title: result?.titles?.[0],
+        sections: sections.map((section) => ({
+          name: section.name,
+          paragraphs: section.paragraphs.map((paragraph) => ({
+            type: paragraph.type,
+            content: paragraph.content,
+          })),
+        })),
+        structure: result?.structure,
+        evidenceClaims: Array.from(claimMap.values()),
+        ideaClaimIds: ideaPackage?.evidenceClaims.map((claim) => claim.id),
+      }),
+    };
   }, [
     sections,
     result?.script,
@@ -2041,6 +2060,38 @@ export default function ScriptPage() {
                   layout={throughlineLayout}
                   onLayoutChange={setThroughlineLayout}
                 />
+              )}
+
+              {throughline && throughline.overlay.length > 0 && (
+                <Card data-testid="script-evidence-overlay">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Evidence overlay</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Sentences use the same throughline graph. On promise stays with a linked section. A tangent body has no claim. Unsupported means a Studio-only claim is spoken as fact, or a claim is used outside its section.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {throughline.overlay.map((span, index) => (
+                      <p
+                        key={`${span.sectionName}-${index}`}
+                        data-evidence-mark={span.mark}
+                        className={`rounded-md border-l-4 px-3 py-2 text-sm ${
+                          span.mark === "unsupported"
+                            ? "border-destructive bg-destructive/5"
+                            : span.mark === "tangent"
+                              ? "border-amber-500 bg-amber-500/10"
+                              : "border-emerald-500 bg-emerald-500/10"
+                        }`}
+                      >
+                        <span className="mr-2 text-xs font-semibold uppercase tracking-wide">
+                          {span.mark === "on_promise" ? "On promise" : span.mark === "tangent" ? "Tangent" : "Unsupported"}
+                        </span>
+                        <span className="text-muted-foreground">{span.sectionName}: </span>
+                        {span.text}
+                      </p>
+                    ))}
+                  </CardContent>
+                </Card>
               )}
 
               <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
