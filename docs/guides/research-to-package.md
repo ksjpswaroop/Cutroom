@@ -32,3 +32,5 @@ While Insights are running, the export buttons say **Insights…**. While Ideas 
 ## Continue
 
 Select one idea, then **Proceed to Script Writer**. From the script, open Thumbnail Creator, then Publish Package. Observed package lines stay distinct from inferred lines. **Open Board** is the next step, not an upload.
+
+Illustrated walkthrough: [../USER_GUIDE.md](../USER_GUIDE.md). Screenshots: [../demos/03-research-results.png](../demos/03-research-results.png), [../demos/12-package.png](../demos/12-package.png).

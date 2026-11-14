@@ -29,3 +29,7 @@ src-tauri/*.key
 CLAUDE.md
 design_guidelines.md
 attached_assets/
+
+# Machine-local library pointer and launch-video render output
+library.json
+launch-video/out/

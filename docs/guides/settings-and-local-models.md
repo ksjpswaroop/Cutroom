@@ -27,4 +27,4 @@ On the Library tab:
 
 Leave them off unless you mean to turn that path on. ViMax is never started as a sidecar, and Cutroom never uploads to YouTube.
 
-Screenshot: [../demos/05-settings-api.png](../demos/05-settings-api.png).
+Screenshot: [../demos/01-settings-api-configured.png](../demos/01-settings-api-configured.png). Credentials checklist (no secret values): [credentials.md](credentials.md).

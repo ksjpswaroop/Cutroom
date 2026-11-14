@@ -1,21 +1,26 @@
 # Demo screenshots
 
-Captured 2026-10-22 from the local Cutroom server at `http://127.0.0.1:5050` (port 5000 was already taken by macOS Control Center). These are screenshots of the running app, not mockups.
+Captured **2026-11-01** from the signed Cutroom sidecar at `http://127.0.0.1:61581` (Cutroom.app launched; Computer Use Screen Recording was not granted, so captures used the loopback UI against the same sidecar). Keys were already **Configured** on this Mac — no secrets appear in these images.
 
 | File | Flow |
 | --- | --- |
-| [01-research-results.png](01-research-results.png) | Research snapshot “Agentic AI automation”, export buttons in the ready state (Download PDF / XLS / CSV), Inspect thumbnails |
-| [02-thumbnail-inspection.png](02-thumbnail-inspection.png) | Five inferred competitor-thumbnail claims after a live Gemini vision call |
-| [03-script-evidence-overlay.png](03-script-evidence-overlay.png) | Throughline fail plus on-promise and tangent sentences |
-| [04-script-throughline-mind-map.png](04-script-throughline-mind-map.png) | Same graph in the mind-map layout |
-| [05-settings-api.png](05-settings-api.png) | Settings → API, keys configured, values not shown |
-| [06-calendar.png](06-calendar.png) | Calendar after adding “Desk stability follow-up” |
-| [07-render-modes.png](07-render-modes.png) | Render mode picker and an existing inferred `render.mp4` |
-| [08-board.png](08-board.png) | Production board, continuity, storyboard, camera filters |
-| [09-package.png](09-package.png) | Publish package with observed vs inferred titles |
-| [10-thumbnail.png](10-thumbnail.png) | Thumbnail Creator with a saved preview |
-| [11-hermes-companion-on.png](11-hermes-companion-on.png) | Settings → Library after turning Hermes companion digest On (then turned back Off) |
-| [12-signed-app-insights-waiting.png](12-signed-app-insights-waiting.png) | Signed app sidecar after searching “desk stability”; export buttons read Insights… |
-| [13-new-signed-app-research.png](13-new-signed-app-research.png) | New notarized app sidecar showing the finished desk-stability snapshot |
+| [01-settings-api-configured.png](01-settings-api-configured.png) | Settings → API, YouTube **Configured** |
+| [02-research-search.png](02-research-search.png) | Research search box + quota meter |
+| [03-research-results.png](03-research-results.png) | Snapshot charts / top videos by views |
+| [04-thumbnail-inspection.png](04-thumbnail-inspection.png) | Live competitor thumbnail inspection (inferred) |
+| [05-insights-ledger.png](05-insights-ledger.png) | Evidence ledger claim with Observed / Inferred labels |
+| [06-ideas-select.png](06-ideas-select.png) | Selected idea package (wobble test) |
+| [07-script-teleprompter.png](07-script-teleprompter.png) | Teleprompter controls and script |
+| [08-throughline-dag.png](08-throughline-dag.png) | Script throughline DAG + FAIL status |
+| [09-mind-map.png](09-mind-map.png) | Same throughline as mind map |
+| [10-evidence-overlay.png](10-evidence-overlay.png) | On promise / overlay sentences |
+| [11-thumbnail.png](11-thumbnail.png) | Thumbnail Creator with research idea loaded |
+| [12-package.png](12-package.png) | Title & hook lab — observed vs inferred |
+| [13-board.png](13-board.png) | Board talent / continuity |
+| [14-render-modes.png](14-render-modes.png) | Render modes + existing cinematic `render.mp4` |
+| [15-calendar.png](15-calendar.png) | Calendar upcoming item after add |
+| [16-export-pack.png](16-export-pack.png) | Export pack toast — single `.zip` download |
 
-Narrative: [../user-flows.md](../user-flows.md). Personas: [../personas.md](../personas.md).
+Older captures (`01-research-results.png` … `13-new-signed-app-research.png`) from 2026-10-22 remain for history. Prefer the numbered **01-settings…** through **16-export…** set above in [USER_GUIDE.md](../USER_GUIDE.md).
+
+Narrative: [../user-flows.md](../user-flows.md) · Presenter clock: [../guides/30-minute-demo.md](../guides/30-minute-demo.md) · Credentials (no secrets): [../guides/credentials.md](../guides/credentials.md).
