@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { FolderOpen, KeyRound } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { firstRunNeeds } from "@shared/first-run-banner";
 
 interface SetupStatus {
   youtube: boolean;
@@ -45,8 +46,14 @@ export function FirstRunBanner() {
 
   if (!status) return null;
 
-  const needsKeys = !dismissedKeys && !(status.youtube && status.gemini);
-  const needsLibrary = !dismissedLibrary && status.isDesktop && !status.libraryPath;
+  const { keys: needsKeys, library: needsLibrary } = firstRunNeeds({
+    youtube: status.youtube,
+    gemini: status.gemini,
+    libraryPath: status.libraryPath,
+    isDesktop: status.isDesktop,
+    dismissedKeys,
+    dismissedLibrary,
+  });
 
   if (!needsKeys && !needsLibrary) return null;
 

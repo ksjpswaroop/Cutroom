@@ -84,6 +84,26 @@ describe("YouTube research snapshots", () => {
     assert.doesNotThrow(() => searchResponseSchema.parse(result));
   });
 
+  test("sends channelId on search.list when Research is channel-first (L-618)", async () => {
+    process.env.YOUTUBE_API_KEY = "test-key"; // pragma: allowlist secret, test fixture
+    let searchUrl = "";
+    globalThis.fetch = (async (input) => {
+      const url = String(input);
+      if (url.includes("/search?")) {
+        searchUrl = url;
+        return Response.json({
+          items: [],
+          pageInfo: { totalResults: 0, resultsPerPage: 0 },
+        });
+      }
+      throw new Error(`Unexpected test URL: ${url}`);
+    }) as typeof fetch;
+
+    await searchVideos({ ...filters, channelId: " UCdesk " });
+    const parsed = new URL(searchUrl);
+    assert.equal(parsed.searchParams.get("channelId"), "UCdesk");
+  });
+
   test("distinguishes an invalid API key response", async () => {
     process.env.YOUTUBE_API_KEY = "test-key"; // pragma: allowlist secret, test fixture
     globalThis.fetch = (async () => Response.json({
