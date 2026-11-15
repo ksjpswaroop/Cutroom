@@ -162,6 +162,7 @@ If live Insights are slow after Research, restore the standing-desk workflow fro
 
 ## Related
 
+- [demo-runbook.md](demo-runbook.md) — exact inputs, proof moments, talking points
 - [credentials.md](credentials.md)
 - [USER_GUIDE.md](../USER_GUIDE.md)
 - [user-flows.md](../user-flows.md)
