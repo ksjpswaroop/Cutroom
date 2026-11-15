@@ -23,7 +23,7 @@ What stands between Cutroom 2.0.0 and a build you'd hand to strangers.
 | **Live-provider verification** | **Never run** |
 | **Windows** | **Unsigned binary only** |
 | Field diagnostics | None by design — no telemetry, and no log export either |
-| **CI on `main`** | **Red since at least 2026-08-29 — `cargo-check` job** |
+| CI on `main` | Was red since 2026-08-29; `cargo-check` fixed 2026-11-15 |
 
 The codebase discipline is genuinely high. The gaps are at the edges: dependencies, paid paths, and anything that happens on a machine you don't own.
 
@@ -90,7 +90,11 @@ The split matters, and it's good news:
 
 `src-tauri/tauri.conf.json` bundles `resources/app/**/*`, which `npm run desktop:prepare` generates and `.gitignore` excludes. On a clean CI checkout that directory never exists, so the Tauri build aborts before compiling. The job is missing its prepare step — it is a **CI configuration defect, not a code defect**, which is why local desktop builds have kept working and nobody noticed.
 
-**Do:** add `npm run desktop:prepare` to the `cargo-check` job before the cargo step, or point the job at a fixture directory. Then treat red CI on `main` as a stop-the-line event, because for three months it hasn't been one.
+**Fixed 2026-11-15.** The `cargo-check` job now writes a placeholder into `src-tauri/resources/app/` before the cargo step. Running the full `desktop:prepare` was rejected as disproportionate: it triggers a production build plus a nested npm install inside a job capped at 10 minutes, when `cargo check` only needs the glob to match. The strict glob stays intact so genuine bundle builds still fail loudly if the real sidecar payload is missing.
+
+Reproduced before fixing — moving the local `resources/app` aside gave exit 101 with the identical message, and the placeholder brought `cargo check` to exit 0.
+
+**Still to do:** treat red CI on `main` as a stop-the-line event, because for three months it hasn't been one.
 
 Secondary, from the same logs: GitHub is warning that `actions/checkout@v4` and `actions/cache@v4` target deprecated Node 20 and are being forced onto Node 24. Bump them before they stop working.
 
@@ -130,7 +134,7 @@ No telemetry is the right call and a selling point. But there is currently *no* 
 
 ## Suggested order
 
-1. Fix the `cargo-check` CI job — cheapest item here, and nothing else is trustworthy while CI is red
+1. ~~Fix the `cargo-check` CI job~~ — **done 2026-11-15**
 2. `npm audit fix` (five non-breaking) → re-verify → patch release
 3. Decide `business/` — the clock is running
 4. Add `engines`
