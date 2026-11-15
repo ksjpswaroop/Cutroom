@@ -19,7 +19,7 @@ What stands between Cutroom 2.0.0 and a build you'd hand to strangers.
 | Crash safety | `unhandledRejection` + `uncaughtException` handlers present |
 | Updater | Signing pubkey configured; `latest.json` endpoint live |
 | macOS | Developer ID signed, notarized, stapled, Gatekeeper green |
-| **Dependency security** | **2 critical, 4 high, 8 moderate in production deps** |
+| Dependency security | Was 2 critical / 4 high / 8 moderate; 1 high (`zod`) remains as of 2026-11-15 |
 | **Live-provider verification** | **Never run** |
 | **Windows** | **Unsigned binary only** |
 | Field diagnostics | None by design — no telemetry, and no log export either |
@@ -50,7 +50,11 @@ The codebase discipline is genuinely high. The gaps are at the edges: dependenci
 - **`proxy-addr` and `body-parser` are near-zero in practice** because the server binds loopback and there is no proxy in front. They become real the moment anyone sets `HOST`. Fix anyway; they're free.
 - **`zod` needs a planned migration.** It's a semver-major bump across `shared/schema.ts` and `shared/evidence-contracts.ts` — the contract layer. Don't rush it into a patch release.
 
-**Do:** `npm audit fix` for the five non-breaking ones, re-run the three verification commands, then schedule the `zod` major separately.
+**Fixed 2026-11-15.** `npm audit fix` (no `--force`) took production vulnerabilities from **14 to 1**. Both criticals are gone: `dompurify` moved 3.4.14 → 3.4.18, closing the only path that touched untrusted YouTube metadata. `body-parser` → 2.4.0, `source-map-js` → 1.2.2, `proxy-addr` and `brace-expansion` resolved by deduplication. Only `package-lock.json` changed, so no dependency range was widened.
+
+Verified after: `check` exit 0, 243 tests pass, `build` exit 0, and the export-path tests (`research export tables`, `zip store`) pass — those exercise the `jspdf` → `dompurify` chain that carried the critical.
+
+**Still to do:** `zod` remains at 3.25.76 with a high-severity memory-exhaustion advisory. Its fix is semver-major across `shared/schema.ts` and `shared/evidence-contracts.ts` — the contract layer — so it needs its own change with the evidence contracts re-verified, not an `audit fix --force`.
 
 **Checked and cleared:** the single `dangerouslySetInnerHTML` (`client/src/components/ui/chart.tsx:81`) interpolates code-defined chart colors, not user input. Not a finding.
 
@@ -135,7 +139,7 @@ No telemetry is the right call and a selling point. But there is currently *no* 
 ## Suggested order
 
 1. ~~Fix the `cargo-check` CI job~~ — **done 2026-11-15**
-2. `npm audit fix` (five non-breaking) → re-verify → patch release
+2. ~~`npm audit fix` (five non-breaking)~~ — **done 2026-11-15**, 14 → 1
 3. Decide `business/` — the clock is running
 4. Add `engines`
 5. Live-key acceptance pass on a clean Mac, cinematic quote path included
