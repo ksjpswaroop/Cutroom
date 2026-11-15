@@ -2,7 +2,7 @@
 
 **Audience:** product, engineering, investors, partners  
 **Last updated:** 2026-08-28  
-**Related:** [FEATURES.md](FEATURES.md) · [MODELS.md](MODELS.md) · [HERMES_DECISION.md](HERMES_DECISION.md) · [INVESTOR_BRIEF.md](INVESTOR_BRIEF.md) · [USER_STORY.md](USER_STORY.md) · [RELEASE_PLAN.md](RELEASE_PLAN.md) · [ROADMAP.md](../ROADMAP.md) · [TRACKER.md](../TRACKER.md)
+**Related:** [FEATURES.md](FEATURES.md) · [MODELS.md](MODELS.md) · [HERMES_DECISION.md](HERMES_DECISION.md) · [USER_STORY.md](USER_STORY.md) · [RELEASE_PLAN.md](RELEASE_PLAN.md) · [ROADMAP.md](../ROADMAP.md) · [TRACKER.md](../TRACKER.md)
 
 ---
 

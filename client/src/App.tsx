@@ -19,6 +19,10 @@ import PackagePage from "@/pages/package";
 import BoardPage from "@/pages/board";
 import VideoPage from "@/pages/video";
 import CalendarPage from "@/pages/calendar";
+import ChannelsPage from "@/pages/channels";
+import AudiencePage from "@/pages/audience";
+import OperationsPage from "@/pages/operations";
+import HumanizePage from "@/pages/humanize";
 import { FirstRunBanner } from "@/components/first-run-banner";
 
 function Router() {
@@ -35,6 +39,10 @@ function Router() {
       <Route path="/board" component={BoardPage} />
       <Route path="/video" component={VideoPage} />
       <Route path="/calendar" component={CalendarPage} />
+      <Route path="/channels" component={ChannelsPage} />
+      <Route path="/audience" component={AudiencePage} />
+      <Route path="/operations" component={OperationsPage} />
+      <Route path="/humanize" component={HumanizePage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

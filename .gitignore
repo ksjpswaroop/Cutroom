@@ -33,3 +33,10 @@ attached_assets/
 # Machine-local library pointer and launch-video render output
 library.json
 launch-video/out/
+
+# Private financial and fundraising material — untracked 2026-11-15.
+# Kept on disk locally, never committed. See docs/FINANCIAL_PURGE_REQUEST.md
+# for the history-removal steps the owner still needs to run on the public remote.
+business/
+docs/INVESTOR_BRIEF.md
+docs/INVESTOR_PITCH.md

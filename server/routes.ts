@@ -21,6 +21,12 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import { apiKeySettingsSchema, getApiKeyStatusAsync, isLocalSettingsRequest, saveApiKeySettings } from "./settings";
+import {
+  buildDiagnosticBundle,
+  diagnosticFileName,
+  serializeDiagnosticBundle,
+  writeDiagnosticBundleToPath,
+} from "./diagnostics";
 import { ollamaStatus } from "./ollama";
 import {
   clearLibraryConfig,
@@ -56,6 +62,32 @@ import {
   updateCalendarItem,
 } from "./content-calendar";
 import { getStudioMirrorStatus, studioMetricsPlaceholder } from "./studio-oauth";
+import {
+  addPersona,
+  channelMemory,
+  createChannel,
+  createProductionItem,
+  deleteChannel,
+  deletePersona,
+  deleteProductionItem,
+  listChannels,
+  listPersonas,
+  listProduction,
+  moveProductionItem,
+  newPersonaId,
+  updateChannel,
+} from "./creator-store";
+import { analyzeChannelIntelligence, buildAvatarMarkdown, buildPersona, humanizeText } from "./creator-ai";
+import {
+  audienceAvatarRequestSchema,
+  audiencePersonaRequestSchema,
+  channelCreateSchema,
+  channelIntelligenceRequestSchema,
+  channelUpdateSchema,
+  humanizeRequestSchema,
+  productionItemCreateSchema,
+  productionItemMoveSchema,
+} from "@shared/creator-modules";
 import { normalizeProviderError, providerErrorPayload } from "./provider-errors";
 import { thumbnailGenerationRequestSchema, thumbnailSuggestionsRequestSchema } from "./thumbnail-contract";
 import {
@@ -130,6 +162,46 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Settings status error:", error);
       return res.status(500).json({ error: "Unable to load settings." });
+    }
+  });
+
+  /**
+   * Opt-in, local-only diagnostics export. No telemetry: the bundle is redacted
+   * and only ever leaves on a user action to a file the user chooses.
+   *
+   * GET streams the bundle inline (browser "save as"). POST { path } writes it
+   * to an absolute path the user picked in the desktop save dialog.
+   */
+  app.get("/api/diagnostics/export", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Diagnostics are available only from this machine." });
+    }
+    try {
+      const bundle = await buildDiagnosticBundle();
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${diagnosticFileName()}"`);
+      return res.send(serializeDiagnosticBundle(bundle));
+    } catch (error) {
+      console.error("Diagnostics export error:", error);
+      return res.status(500).json({ error: "Unable to build diagnostics." });
+    }
+  });
+
+  app.post("/api/diagnostics/export", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      return res.status(403).json({ error: "Diagnostics are available only from this machine." });
+    }
+    const target = typeof req.body?.path === "string" ? req.body.path : "";
+    if (!target) {
+      return res.status(400).json({ error: "Choose a file path for the diagnostics export." });
+    }
+    try {
+      const result = await writeDiagnosticBundleToPath(target);
+      return res.json({ saved: true, ...result });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Unable to write diagnostics file." });
     }
   });
 
@@ -263,6 +335,170 @@ export async function registerRoutes(
     } catch (error: any) {
       const status = typeof error?.status === "number" ? error.status : 400;
       return res.status(status).json({ error: error?.message || "Unable to delete calendar item." });
+    }
+  });
+
+  // ── Creator modules (folded in): Channels, Audience, Operations, Humanize ──
+  const localGuard = (req: Parameters<typeof isLocalSettingsRequest>[0], res: Response, label: string) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isLocalSettingsRequest(req)) {
+      res.status(403).json({ error: `${label} is available only from this machine.` });
+      return false;
+    }
+    return true;
+  };
+
+  app.get("/api/channels", async (req, res) => {
+    if (!localGuard(req, res, "Channels")) return;
+    try {
+      return res.json({ channels: await listChannels() });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to load channels." });
+    }
+  });
+
+  app.post("/api/channels", async (req, res) => {
+    if (!localGuard(req, res, "Channels")) return;
+    try {
+      const channel = await createChannel(channelCreateSchema.parse(req.body));
+      return res.status(201).json({ channel });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Unable to create channel." });
+    }
+  });
+
+  app.put("/api/channels/:id", async (req, res) => {
+    if (!localGuard(req, res, "Channels")) return;
+    try {
+      const channel = await updateChannel(channelUpdateSchema.parse({ ...req.body, id: req.params.id }));
+      return res.json({ channel });
+    } catch (error: any) {
+      const status = typeof error?.status === "number" ? error.status : 400;
+      return res.status(status).json({ error: error?.message || "Unable to update channel." });
+    }
+  });
+
+  app.delete("/api/channels/:id", async (req, res) => {
+    if (!localGuard(req, res, "Channels")) return;
+    try {
+      return res.json(await deleteChannel(req.params.id));
+    } catch (error: any) {
+      const status = typeof error?.status === "number" ? error.status : 400;
+      return res.status(status).json({ error: error?.message || "Unable to delete channel." });
+    }
+  });
+
+  app.get("/api/channels/:id/memory", async (req, res) => {
+    if (!localGuard(req, res, "Channel memory")) return;
+    try {
+      return res.json({ memory: await channelMemory(req.params.id) });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to load channel memory." });
+    }
+  });
+
+  app.post("/api/channels/intelligence", async (req, res) => {
+    if (!localGuard(req, res, "Channel intelligence")) return;
+    try {
+      const input = channelIntelligenceRequestSchema.parse(req.body);
+      return res.json({ intelligence: analyzeChannelIntelligence(input.niche, input.scriptTitles) });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Unable to analyze channel." });
+    }
+  });
+
+  // Operations / Kanban
+  app.get("/api/production", async (req, res) => {
+    if (!localGuard(req, res, "Production board")) return;
+    try {
+      const channelId = typeof req.query.channelId === "string" ? req.query.channelId : undefined;
+      return res.json({ items: await listProduction(channelId) });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to load production board." });
+    }
+  });
+
+  app.post("/api/production", async (req, res) => {
+    if (!localGuard(req, res, "Production board")) return;
+    try {
+      const item = await createProductionItem(productionItemCreateSchema.parse(req.body));
+      return res.status(201).json({ item });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Unable to add production item." });
+    }
+  });
+
+  app.patch("/api/production/:id", async (req, res) => {
+    if (!localGuard(req, res, "Production board")) return;
+    try {
+      const item = await moveProductionItem(productionItemMoveSchema.parse({ ...req.body, id: req.params.id }));
+      return res.json({ item });
+    } catch (error: any) {
+      const status = typeof error?.status === "number" ? error.status : 400;
+      return res.status(status).json({ error: error?.message || "Unable to move production item." });
+    }
+  });
+
+  app.delete("/api/production/:id", async (req, res) => {
+    if (!localGuard(req, res, "Production board")) return;
+    try {
+      return res.json(await deleteProductionItem(req.params.id));
+    } catch (error: any) {
+      const status = typeof error?.status === "number" ? error.status : 400;
+      return res.status(status).json({ error: error?.message || "Unable to delete production item." });
+    }
+  });
+
+  // Audience personas + avatar
+  app.get("/api/personas", async (req, res) => {
+    if (!localGuard(req, res, "Audience personas")) return;
+    try {
+      const channelId = typeof req.query.channelId === "string" ? req.query.channelId : undefined;
+      return res.json({ personas: await listPersonas(channelId) });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to load personas." });
+    }
+  });
+
+  app.post("/api/personas", async (req, res) => {
+    if (!localGuard(req, res, "Audience personas")) return;
+    try {
+      const input = audiencePersonaRequestSchema.parse(req.body);
+      const persona = buildPersona(newPersonaId(), input.channelId, input.channelName, input.niche);
+      return res.status(201).json({ persona: await addPersona(persona) });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Unable to generate persona." });
+    }
+  });
+
+  app.delete("/api/personas/:id", async (req, res) => {
+    if (!localGuard(req, res, "Audience personas")) return;
+    try {
+      return res.json(await deletePersona(req.params.id));
+    } catch (error: any) {
+      const status = typeof error?.status === "number" ? error.status : 400;
+      return res.status(status).json({ error: error?.message || "Unable to delete persona." });
+    }
+  });
+
+  app.post("/api/audience/avatar", async (req, res) => {
+    if (!localGuard(req, res, "Audience avatar")) return;
+    try {
+      const input = audienceAvatarRequestSchema.parse(req.body);
+      return res.json({ avatar: buildAvatarMarkdown(input.channelName, input.niche) });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Unable to build avatar." });
+    }
+  });
+
+  // Humanize (routes through the active Cutroom text provider, Ollama included)
+  app.post("/api/humanize", rateLimit, async (req, res) => {
+    if (!localGuard(req, res, "Humanize")) return;
+    try {
+      const input = humanizeRequestSchema.parse(req.body);
+      return res.json({ result: await humanizeText(input.text) });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Unable to humanize text." });
     }
   });
 
@@ -461,7 +697,7 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("YouTube search error:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Invalid search parameters", details: error.errors });
+        return res.status(400).json({ error: "Invalid search parameters", details: error.issues });
       }
       const providerError = normalizeProviderError(error, "youtube");
       res.status(providerError.status).json(providerErrorPayload(providerError, "YouTube Data API"));
@@ -481,7 +717,7 @@ export async function registerRoutes(
         return res.status(400).json({
           error: "Between 1 and 5 video IDs are required.",
           code: "RESEARCH_CAPTIONS_REQUEST_INVALID",
-          details: parsed.error.errors,
+          details: parsed.error.issues,
         });
       }
       const captions = await fetchPublicCaptionsForVideos(parsed.data.videoIds);
@@ -500,7 +736,7 @@ export async function registerRoutes(
         return res.status(400).json({
           error: "A snapshot and between 1 and 50 videos with thumbnail URLs are required.",
           code: "THUMBNAIL_INSPECTION_REQUEST_INVALID",
-          details: parsed.error.errors,
+          details: parsed.error.issues,
         });
       }
       const result = await inspectCompetitorThumbnailsWithGemini(parsed.data);
@@ -519,7 +755,7 @@ export async function registerRoutes(
         return res.status(400).json({
           error: "Between 1 and 3 video IDs are required.",
           code: "RESEARCH_COMMENT_QUESTIONS_REQUEST_INVALID",
-          details: parsed.error.errors,
+          details: parsed.error.issues,
         });
       }
       const questions = await fetchCommentQuestionsForVideos(parsed.data.videoIds);
@@ -555,7 +791,7 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Narration extraction error:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Invalid narration extraction request", details: error.errors });
+        return res.status(400).json({ error: "Invalid narration extraction request", details: error.issues });
       }
       const providerError = normalizeProviderError(error, "provider");
       res.status(providerError.status).json(providerErrorPayload(providerError, "Narration extraction"));
@@ -585,7 +821,7 @@ export async function registerRoutes(
         return res.status(400).json({
           error: "A query and between 1 and 50 valid videos are required.",
           code: "RESEARCH_REQUEST_INVALID",
-          details: parsed.error.errors,
+          details: parsed.error.issues,
         });
       }
       res.locals.validatedBody = parsed.data;
@@ -616,7 +852,7 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Title regeneration error:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Invalid title regeneration request", details: error.errors });
+        return res.status(400).json({ error: "Invalid title regeneration request", details: error.issues });
       }
       const providerError = normalizeProviderError(error, "provider");
       res.status(providerError.status).json(providerErrorPayload(providerError, "Title regeneration"));

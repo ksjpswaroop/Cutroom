@@ -63,7 +63,7 @@ export function requireValidBody<T>(schema: ZodType<T>, errorMessage: string) {
     if (!parsed.success) {
       return res.status(400).json({
         error: errorMessage,
-        details: parsed.error.errors,
+        details: parsed.error.issues,
       });
     }
     res.locals.validatedBody = parsed.data;

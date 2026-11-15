@@ -38,7 +38,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, FileText, Settings, Rocket, Check, ArrowRight, Image, History, Loader2, MoreHorizontal, Pencil, Trash2, Package, Clapperboard, CalendarDays, LayoutGrid } from "lucide-react";
+import { Search, FileText, Settings, Rocket, Check, ArrowRight, Image, History, Loader2, MoreHorizontal, Pencil, Trash2, Package, Clapperboard, CalendarDays, LayoutGrid, Tv, Users, KanbanSquare, Wand2 } from "lucide-react";
 import { useWorkflow } from "@/lib/workflow-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
@@ -399,6 +399,38 @@ export function AppSidebar() {
               </SidebarMenu>
             )}
             {historyError && <p className="px-2 pt-2 text-xs leading-relaxed text-destructive" role="status">{historyError}</p>}
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Creator tools</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {[
+                { title: "Channels", url: "/channels", icon: Tv, iconClass: "bg-indigo-500/15 text-indigo-600 dark:bg-indigo-400/20 dark:text-indigo-400" },
+                { title: "Audience", url: "/audience", icon: Users, iconClass: "bg-teal-500/15 text-teal-600 dark:bg-teal-400/20 dark:text-teal-400" },
+                { title: "Operations", url: "/operations", icon: KanbanSquare, iconClass: "bg-orange-500/15 text-orange-600 dark:bg-orange-400/20 dark:text-orange-400" },
+                { title: "Humanize", url: "/humanize", icon: Wand2, iconClass: "bg-fuchsia-500/15 text-fuchsia-600 dark:bg-fuchsia-400/20 dark:text-fuchsia-400" },
+              ].map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton asChild isActive={location === item.url}>
+                    <Link href={item.url} aria-current={location === item.url ? "page" : undefined}>
+                      <span
+                        className={cn(
+                          "flex size-7 shrink-0 items-center justify-center rounded-md",
+                          item.iconClass,
+                          location === item.url && "ring-1 ring-current/25",
+                        )}
+                        aria-hidden="true"
+                      >
+                        <item.icon className="size-4" />
+                      </span>
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
