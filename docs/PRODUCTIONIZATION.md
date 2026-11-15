@@ -1,0 +1,132 @@
+# Productionization assessment — 2026-11-15
+
+What stands between Cutroom 2.0.0 and a build you'd hand to strangers.
+
+**Method:** evidence, not the tracker. `TRACKER.md` reads 104 done / 1 cancelled / **0 open**, so it cannot tell you what's left. Everything below came from running the verification suite, auditing dependencies, and reading the shipped config on merged `main` (`0175985`).
+
+**Verified green on merged main:** `npm run check` exit 0 · `npm test` 243 pass / 0 fail · `npm run build` exit 0. All three HANDOFF commands.
+
+---
+
+## Scorecard
+
+| Area | State |
+| --- | --- |
+| Contract tests | 243 passing, zero skipped |
+| Secret hygiene | No secret ever committed — verified across all history |
+| Code debt markers | Zero TODO / FIXME / HACK in `server`, `shared`, `client/src` |
+| Network posture | Binds `127.0.0.1` by default; `0.0.0.0` explicitly out of scope |
+| Crash safety | `unhandledRejection` + `uncaughtException` handlers present |
+| Updater | Signing pubkey configured; `latest.json` endpoint live |
+| macOS | Developer ID signed, notarized, stapled, Gatekeeper green |
+| **Dependency security** | **2 critical, 4 high, 8 moderate in production deps** |
+| **Live-provider verification** | **Never run** |
+| **Windows** | **Unsigned binary only** |
+| Field diagnostics | None by design — no telemetry, and no log export either |
+
+The codebase discipline is genuinely high. The gaps are at the edges: dependencies, paid paths, and anything that happens on a machine you don't own.
+
+---
+
+## P0 — blockers
+
+### 1. Two critical CVEs in production dependencies
+
+`npm audit --omit=dev` → **14 vulnerabilities (2 critical, 4 high, 8 moderate)**.
+
+| Severity | Package | Issue | Fix |
+| --- | --- | --- | --- |
+| CRITICAL | `dompurify` | DOM XSS — `IN_PLACE` leaves detached subtree event handlers armed | non-breaking |
+| CRITICAL | `proxy-addr` | IP spoofing via IPv4-mapped IPv6 trust subnet | non-breaking |
+| HIGH | `body-parser` | DoS via trailing bytes after compressed body | non-breaking |
+| HIGH | `brace-expansion` | Quadratic-time expansion CPU DoS | non-breaking |
+| HIGH | `source-map-js` | Event-loop DoS via indexed section offsets | non-breaking |
+| HIGH | `zod` | Memory exhaustion on oversized collections | **breaking (semver major)** |
+
+**Triage by real exposure, not by severity label:**
+
+- **`dompurify` is the one that matters.** It is transitive via `jspdf@4.2.1` (PDF export). Research PDFs embed **untrusted public YouTube titles and descriptions**, so there is a plausible path from attacker-controlled video metadata into the sanitizer. Narrow, but it is the one place the product handles hostile strings in a rendering context. Fix is non-breaking — take it.
+- **`proxy-addr` and `body-parser` are near-zero in practice** because the server binds loopback and there is no proxy in front. They become real the moment anyone sets `HOST`. Fix anyway; they're free.
+- **`zod` needs a planned migration.** It's a semver-major bump across `shared/schema.ts` and `shared/evidence-contracts.ts` — the contract layer. Don't rush it into a patch release.
+
+**Do:** `npm audit fix` for the five non-breaking ones, re-run the three verification commands, then schedule the `zod` major separately.
+
+**Checked and cleared:** the single `dangerouslySetInnerHTML` (`client/src/components/ui/chart.tsx:81`) interpolates code-defined chart colors, not user input. Not a finding.
+
+### 2. No live-provider acceptance pass has ever run
+
+`HANDOFF.md` states it plainly: *"Paid-provider behavior still needs an explicit live-key acceptance pass."* The test suite makes **no live provider calls** by design (a standing boundary), so 243 green tests say nothing about:
+
+- Gemini text and image under real quota, real latency, real error bodies
+- YouTube Data API quota exhaustion behavior at the 10,000-unit ceiling
+- **MiniMax Hailuo H3 cinematic — the quote-then-charge path.** This spends real money and has never been exercised end to end against the live provider.
+- Keychain read/write on a machine that isn't this one
+- OAuth Studio mirror against a real refresh token
+
+The cinematic path is the sharpest edge: a billing flow verified only by contract tests. The checklist exists at `docs/DESKTOP.md` (L-202, L-203, L-208) and has not been executed.
+
+**Do:** run it on a clean Mac with a separate throwaway key, and record the results.
+
+### 3. Financial documents are public
+
+`business/` — valuation workbook, valuation report, business plan, pitch deck, investor handover — was committed and pushed to `github.com/ksjpswaroop/Cutroom`, a **public** repository, on 2026-11-14.
+
+This was a deliberate decision made with the file list in view, so it is recorded here as a known state rather than an error. It belongs on this list because the cost of reversing it rises daily: GitHub keeps blobs reachable by SHA after branch deletion, so removal requires history rewriting *and* a support request to purge cached objects.
+
+**Decide:** keep public, or rewrite now. There is no cheap third option later.
+
+---
+
+## P1 — before wider distribution
+
+### 4. No `engines` field
+
+`package.json` declares no `engines`. CI pins Node `20.19.0`; this machine runs `v26.10.0`; the README claims Node 20.19+. Nothing enforces any of it, so a contributor on an unsupported Node gets a confusing failure instead of a clear one.
+
+**Do:** add `"engines": { "node": ">=20.19" }`.
+
+### 5. Windows is unsigned
+
+L-411 shipped `cutroom-windows-x86_64.exe` cross-built via cargo-xwin — unsigned, with NSIS/MSI still needing a Windows host or CI runner. Users will meet a SmartScreen warning, which is precisely the trust friction this product exists to avoid. macOS is fully notarized; Windows is not at parity.
+
+### 6. Zero field diagnostics
+
+No telemetry is the right call and a selling point. But there is currently *no* path for a user to report what went wrong — no crash dump, no log bundle, no "export diagnostics" button. When a stranger hits a bug, neither of you can see it.
+
+**Do:** an opt-in, local-only "export diagnostic bundle" that writes redacted logs to a file the user chooses and inspects before sending. Consistent with the privacy posture; closes the support hole.
+
+### 7. Rate limiting is in-memory
+
+`server/rate-limit.ts` resets on restart. Correct for single-user loopback. It silently stops being correct if a multi-user or hosted surface is ever added — worth a comment at the definition so the assumption is explicit.
+
+---
+
+## P2 — hygiene
+
+8. **`dist/index.cjs` is 1.0 MB**, flagged by the bundler. Cosmetic for a desktop sidecar; worth a look if startup time regresses.
+9. **Updater has never been exercised end to end.** Pubkey and endpoint are configured; an actual v2.0.0 → v2.0.1 upgrade on a real install hasn't been proven. The first real update is a bad time to find out.
+10. **Dependency tree is not reproducibly verified for desktop packaging.** `node_modules` vanished from this checkout between 2026-11-13 and 2026-11-15 (cause unknown; nothing in this session removed it). `npm ci` from the lockfile restored a green build, so no harm — but desktop release builds should run from `npm ci` on a clean checkout, never from whatever happens to be on the machine.
+
+---
+
+## Suggested order
+
+1. `npm audit fix` (five non-breaking) → re-verify → patch release
+2. Decide `business/` — the clock is running
+3. Add `engines`
+4. Live-key acceptance pass on a clean Mac, cinematic quote path included
+5. Diagnostic bundle export
+6. Updater end-to-end test
+7. Plan the `zod` major against the contract layer
+8. Windows signing
+
+Items 1–3 are a day. Item 4 is the one that decides whether this is shippable to strangers, and it cannot be shortened by reading more code.
+
+---
+
+## Related
+
+- [../TRACKER.md](../TRACKER.md) — feature ledger (all green; not a readiness signal)
+- [../HANDOFF.md](../HANDOFF.md) — verification commands, standing boundaries
+- [RELEASE_PLAN.md](RELEASE_PLAN.md) — release train and packaging checklist
+- [DESKTOP.md](DESKTOP.md) — live-key acceptance checklist
