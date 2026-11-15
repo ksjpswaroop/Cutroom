@@ -28,4 +28,4 @@ The overlay lists sentences from that same graph:
 
 Fix a tangent by tying the section to a real claim, or cut the section, before you treat the script as ready for a thumbnail.
 
-Screenshot from the standing-desk script: [../demos/03-script-evidence-overlay.png](../demos/03-script-evidence-overlay.png).
+Screenshots from the standing-desk script: [../demos/07-script-teleprompter.png](../demos/07-script-teleprompter.png), [../demos/08-throughline-dag.png](../demos/08-throughline-dag.png), [../demos/10-evidence-overlay.png](../demos/10-evidence-overlay.png). Full guide: [../USER_GUIDE.md](../USER_GUIDE.md).

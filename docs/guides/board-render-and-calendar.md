@@ -24,10 +24,10 @@ Open **Render** and pick one mode:
 
 Voice consent applies only to your own voice. Cutroom does not clone people from the research grid. The review player labels a generated file inferred.
 
-A finished example on this machine: [../demos/07-render-modes.png](../demos/07-render-modes.png).
+Finished examples: [../demos/13-board.png](../demos/13-board.png), [../demos/14-render-modes.png](../demos/14-render-modes.png) (cinematic `render.mp4` in the review player), [../demos/16-export-pack.png](../demos/16-export-pack.png).
 
 ## Calendar
 
 Open **Calendar**. Enter a theme and a planned date, then **Add to calendar**. The backlog stays on this computer. There is no Google Calendar sync.
 
-Example added during the 2026-10-22 demo: “Desk stability follow-up” on 2026-10-29. See [../demos/06-calendar.png](../demos/06-calendar.png).
+Example added during the 2026-11-01 guide capture: “Desk stability follow-up demo” on 2026-11-08. See [../demos/15-calendar.png](../demos/15-calendar.png).

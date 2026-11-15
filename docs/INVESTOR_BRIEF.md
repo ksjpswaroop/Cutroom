@@ -3,7 +3,7 @@
 **Product:** Cutroom — local-first, evidence-grounded YouTube pre-publish desk  
 **License:** Apache 2.0  
 **Stage:** Working product (web + Tauri desktop shell); macOS signing in progress  
-**Date:** 2026-08-28
+**Date:** 2026-08-28 · problem-first companion: [INVESTOR_PITCH.md](INVESTOR_PITCH.md)
 
 ---
 
