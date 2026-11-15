@@ -23,6 +23,7 @@ What stands between Cutroom 2.0.0 and a build you'd hand to strangers.
 | **Live-provider verification** | **Never run** |
 | **Windows** | **Unsigned binary only** |
 | Field diagnostics | None by design — no telemetry, and no log export either |
+| **CI on `main`** | **Red since at least 2026-08-29 — `cargo-check` job** |
 
 The codebase discipline is genuinely high. The gaps are at the edges: dependencies, paid paths, and anything that happens on a machine you don't own.
 
@@ -77,6 +78,24 @@ This was a deliberate decision made with the file list in view, so it is recorde
 
 ---
 
+### 4. CI has been red on `main` since at least August
+
+`gh run list --branch main` shows the last two completed runs before today both **failed** — 2026-08-29 and 2026-10-23. The safety net has been off for roughly three months, which means a real regression would land unnoticed.
+
+The split matters, and it's good news:
+
+- **`verify` succeeds** — contract tests, `tsc`, and the production build all pass in CI. The job that catches code regressions is healthy.
+- **`cargo-check` fails**, exit 101, with the cause in the log:
+  `glob pattern resources/app/**/* path not found or didn't match any files.`
+
+`src-tauri/tauri.conf.json` bundles `resources/app/**/*`, which `npm run desktop:prepare` generates and `.gitignore` excludes. On a clean CI checkout that directory never exists, so the Tauri build aborts before compiling. The job is missing its prepare step — it is a **CI configuration defect, not a code defect**, which is why local desktop builds have kept working and nobody noticed.
+
+**Do:** add `npm run desktop:prepare` to the `cargo-check` job before the cargo step, or point the job at a fixture directory. Then treat red CI on `main` as a stop-the-line event, because for three months it hasn't been one.
+
+Secondary, from the same logs: GitHub is warning that `actions/checkout@v4` and `actions/cache@v4` target deprecated Node 20 and are being forced onto Node 24. Bump them before they stop working.
+
+---
+
 ## P1 — before wider distribution
 
 ### 4. No `engines` field
@@ -111,16 +130,17 @@ No telemetry is the right call and a selling point. But there is currently *no* 
 
 ## Suggested order
 
-1. `npm audit fix` (five non-breaking) → re-verify → patch release
-2. Decide `business/` — the clock is running
-3. Add `engines`
-4. Live-key acceptance pass on a clean Mac, cinematic quote path included
-5. Diagnostic bundle export
-6. Updater end-to-end test
-7. Plan the `zod` major against the contract layer
-8. Windows signing
+1. Fix the `cargo-check` CI job — cheapest item here, and nothing else is trustworthy while CI is red
+2. `npm audit fix` (five non-breaking) → re-verify → patch release
+3. Decide `business/` — the clock is running
+4. Add `engines`
+5. Live-key acceptance pass on a clean Mac, cinematic quote path included
+6. Diagnostic bundle export
+7. Updater end-to-end test
+8. Plan the `zod` major against the contract layer
+9. Windows signing
 
-Items 1–3 are a day. Item 4 is the one that decides whether this is shippable to strangers, and it cannot be shortened by reading more code.
+Items 1–4 are a day. Item 5 is the one that decides whether this is shippable to strangers, and it cannot be shortened by reading more code.
 
 ---
 
