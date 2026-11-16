@@ -320,7 +320,7 @@ collaboration, and third-party integrations.
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-806 | doing | Channel → Research → Operations flow. **Done:** `/api/channels/intelligence` grounds in `channelMemory` via optional `channelId`; a `productionItem` can be spawned with a `snapshotId` (L-803, tested). **Left:** active-channel niche pre-fills the Research page UI |
+| L-806 | done | Channel → Research → Operations flow: `/api/channels/intelligence` grounds in `channelMemory` via optional `channelId`; a `productionItem` can be spawned with a `snapshotId` (L-803, tested); the Research search box prefills once from the active channel's niche when empty (`client/src/pages/research.tsx`) |
 | L-807 | done | Unified evidence ledger: `buildCreatorLedger` aggregates channel-intel + personas + avatar, every entry `inferred`, and throws on any entry without that label; served at `/api/creator/ledger` (`server/creator-ledger.ts`) |
 | L-808 | done | Creator artifacts for export pack: `buildCreatorArtifacts` emits `creator/{channel-intelligence,persona}.json` + `creator/avatar.md`, each carrying `evidenceClass`; opt-in (empty input → no files); no new key (`server/creator-export.ts`). **Left:** wire into the live export route behind the Settings toggle |
 
@@ -335,10 +335,10 @@ acceptance and the history purge are env/owner-gated and cannot be simulated.
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-901 | todo | CI stop-the-line: branch protection so red `main` blocks merges; policy recorded in PRODUCTIONIZATION + CONTRIBUTING note |
-| L-902 | todo | Updater end-to-end proof: real `v2.0.0 → v2.0.x` upgrade against signed build + `latest.json`; record result (closes PRODUCTIONIZATION P2 #9) |
+| L-901 | done | CI stop-the-line policy documented in `CONTRIBUTING.md` (+ admin branch-protection note). **Owner action:** enable branch protection on `main` in GitHub settings — a repo setting, not a code change |
+| L-902 | blocked | Updater end-to-end proof: the `latest.json` endpoint is covered by `server/updater-endpoint.test.ts`; the remaining real `v2.0.0 → v2.0.x` upgrade on a signed install needs a signed build + a prior install (env/release-gated). Closes PRODUCTIONIZATION P2 #9 when run |
 | L-904 | done | Rate-limit assumption guard: explicit single-user/loopback comment at `server/rate-limit.ts` + `warnIfNonLoopbackHost` wired at startup (`server/index.ts`); closes PRODUCTIONIZATION P1 #7 |
-| L-905 | todo | Reproducible desktop build: release builds from `npm ci` on a clean checkout; document + optional CI check (closes P2 #10) |
+| L-905 | done | Reproducible desktop build runbook (`npm ci` from a clean checkout) documented in `CONTRIBUTING.md`; closes PRODUCTIONIZATION P2 #10 |
 
 ### Track ACC — live acceptance & trust (env/owner-gated; **do not simulate**)
 

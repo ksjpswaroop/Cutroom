@@ -44,8 +44,8 @@ Measured after the first production-depth pass (Track CS core + L-904):
 | `npm run build` | exit 0 |
 | `npm audit --omit=dev` | 0 vulnerabilities |
 | Creator suite | Channel intel + personas **provider-grounded** (injectable, deterministic fallback, label code-controlled); Operations gated on a cited snapshot; Humanize surfaces provider/fallback; unified evidence ledger served |
-| Shipped | `L-801`, `L-802`, `L-803`, `L-804`, `L-805`, `L-807`, `L-808`, `L-904` · partial `L-806` |
-| Still open | `L-806` Research-page prefill; `L-901`/`L-902`/`L-905` release eng; `L-903`/`L-906`/`L-907` env/owner-gated |
+| Shipped | `L-801`–`L-808` (whole creator suite), `L-901`, `L-904`, `L-905` |
+| Still open | `L-902` updater live-upgrade proof; `L-903`/`L-906`/`L-907` env/owner-gated; merge + tag + release (owner) |
 
 **What "production depth" means here, now partly delivered:** channel
 intelligence and personas gained a provider-grounded path

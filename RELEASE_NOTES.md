@@ -1,5 +1,54 @@
 # Release notes
 
+## Version 2.1.0 — Creator Suite GA (draft, pending release)
+
+> Prepared draft. The tag, signed build, and GitHub Release are the owner's call
+> and are not created by this change. The code is merged-ready on the PR; the
+> live-provider acceptance pass and Windows signing remain open and named (see
+> [docs/PRODUCTIONIZATION.md](docs/PRODUCTIONIZATION.md)).
+
+Brings the creator-intelligence suite folded in from CreatorForge to production
+depth, and closes the code-side productionization gaps.
+
+### Added / improved
+
+- **Creator suite is provider-grounded.** Channel intelligence and audience
+  personas synthesize through the active Cutroom text provider (Gemini / Ollama /
+  OpenRouter / OpenAI-compatible / MiniMax) and fall back to a deterministic
+  rewrite when no provider is configured. Every finding is labeled **inferred**
+  in code — a model can never relabel a synthesized claim as observed.
+- **Operations is evidence-gated.** Production items carry an optional snapshot
+  and due date; an item cannot be marked **published** without citing a workflow
+  snapshot.
+- **Unified creator evidence ledger** (`/api/creator/ledger`) collects channel
+  intelligence, personas, and the audience avatar, refusing any entry without an
+  `inferred` label.
+- **Humanize honesty.** The result discloses the active provider and shows a
+  clear notice when the local deterministic fallback ran.
+- **Research prefill.** The search box seeds from the active channel's niche
+  (once, only when empty).
+- **Opt-in creator export artifacts** and an **opt-in, local-only, redacted
+  diagnostics export** (no telemetry).
+- **Trust/robustness:** `zod` 4 migration (high-severity advisory cleared);
+  `engines: node >=20.19`; CI Actions off deprecated Node 20; rate-limiter
+  single-user assumption guarded with a non-loopback `HOST` warning.
+
+### Verification
+
+- `npm run check`: passed
+- `npm test`: 295 passed / 0 failed
+- `npm run build`: passed
+- `npm audit --omit=dev`: 0 vulnerabilities
+
+### Still open (named, not simulated)
+
+- **Live-provider acceptance pass** (incl. MiniMax Hailuo H3 quote-then-charge) —
+  needs a clean Mac and a throwaway billable key.
+- **Windows signing** — needs an Authenticode certificate and a Windows runner.
+- **Financial history purge** — owner-run history rewrite + GitHub support.
+- **Not ported, by design:** CreatorForge's store, credits, Claude-only engine,
+  fake publish API, collaboration, and integrations.
+
 ## 2026-08-25: Version 1.0.0 public release
 
 This release brings the complete local-first workflow, current product documentation, and release checks together in the public GitHub repository.
