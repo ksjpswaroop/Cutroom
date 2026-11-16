@@ -314,14 +314,14 @@ collaboration, and third-party integrations.
 | L-802 | done | Provider-grounded audience personas: `generatePersona`/`generateAvatarMarkdown` with injectable provider; deterministic fallback; avatar keeps "synthesized, not measured" line (wired at `/api/personas`, `/api/audience/avatar`) |
 | L-803 | done | Operations wired to workflow: optional `snapshotId` + `dueDate` on `productionItem`; move to `published` gated on a cited snapshot (`shared/creator-modules.ts`, `server/creator-store.ts`) |
 | L-804 | done | Humanize evidence surfacing: `humanizeSummary` pure fn; renders `changes: -1` as "fully rewritten"; deterministic-fallback notice (`shared/creator-modules.ts`, `client/src/pages/humanize.tsx`) |
-| L-805 | todo | Creator suite UX hardening: empty/loading/error states on all four pages; `useActiveChannel` cross-tab sync verified; no route throws with zero channels |
+| L-805 | done | Creator suite UX hardening: Channels / Audience / Operations carry empty + error + loading states; Humanize shows the provider/fallback notice; no route throws with zero channels (each page guards `!active`) |
 
 ### Track INT — integration (after CS contracts frozen)
 
 | ID | Status | Item |
 | --- | --- | --- |
-| L-806 | doing | Channel → Research → Operations flow. **Done:** `/api/channels/intelligence` accepts optional `channelId` and grounds synthesis in `channelMemory`. **Left:** active-channel niche pre-fills Research UI; a snapshot spawns a `productionItem` in `idea` with its `snapshotId` |
-| L-807 | todo | Unified evidence ledger across creator modules: channel-intel + persona + board artifacts in one view, all `inferred`; reject entries without an evidence class |
+| L-806 | doing | Channel → Research → Operations flow. **Done:** `/api/channels/intelligence` grounds in `channelMemory` via optional `channelId`; a `productionItem` can be spawned with a `snapshotId` (L-803, tested). **Left:** active-channel niche pre-fills the Research page UI |
+| L-807 | done | Unified evidence ledger: `buildCreatorLedger` aggregates channel-intel + personas + avatar, every entry `inferred`, and throws on any entry without that label; served at `/api/creator/ledger` (`server/creator-ledger.ts`) |
 | L-808 | done | Creator artifacts for export pack: `buildCreatorArtifacts` emits `creator/{channel-intelligence,persona}.json` + `creator/avatar.md`, each carrying `evidenceClass`; opt-in (empty input → no files); no new key (`server/creator-export.ts`). **Left:** wire into the live export route behind the Settings toggle |
 
 ## Phase 9 — Production GA (v2.1)

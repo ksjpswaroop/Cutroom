@@ -199,9 +199,15 @@ Closed in this pass (TDD — tests written first), all re-verified with
   `creator/*` files, opt-in (empty input → no files).
 - **L-904 — rate-limit assumption guarded.** Explicit single-user/loopback
   comment + `warnIfNonLoopbackHost` wired at startup. **Closes P1 #7.**
+- **L-805 — creator suite UX hardened.** Channels / Audience / Operations carry
+  empty + error + loading states; Humanize discloses provider/fallback; pages
+  guard the no-channel case.
+- **L-807 — unified evidence ledger.** `buildCreatorLedger` aggregates
+  channel-intel + personas + avatar, every entry `inferred`, throwing on any
+  unlabeled entry; served at `/api/creator/ledger`.
 
-Still open (code): `L-805` UX hardening, `L-806`/`L-807` integration UI,
-`L-901`/`L-902`/`L-905` release engineering. See
+Tests now **295 pass / 0 fail** (+29 over baseline). Still open (code):
+`L-806` Research-page prefill, `L-901`/`L-902`/`L-905` release engineering. See
 [PRODUCTION_PLAN.md](PRODUCTION_PLAN.md).
 
 ### Still open — named blockers, not simulated

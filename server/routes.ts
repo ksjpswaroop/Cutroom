@@ -83,6 +83,7 @@ import {
   generatePersona,
   humanizeText,
 } from "./creator-ai";
+import { buildCreatorLedger } from "./creator-ledger";
 import {
   audienceAvatarRequestSchema,
   audiencePersonaRequestSchema,
@@ -506,6 +507,19 @@ export async function registerRoutes(
       return res.json({ result: await humanizeText(input.text) });
     } catch (error: any) {
       return res.status(400).json({ error: error?.message || "Unable to humanize text." });
+    }
+  });
+
+  // L-807: unified evidence ledger across creator modules for the active channel.
+  // Every entry is synthesized (inferred); the aggregator rejects any that isn't.
+  app.get("/api/creator/ledger", async (req, res) => {
+    if (!localGuard(req, res, "Creator ledger")) return;
+    try {
+      const channelId = typeof req.query.channelId === "string" ? req.query.channelId : undefined;
+      const personas = await listPersonas(channelId);
+      return res.json({ entries: buildCreatorLedger({ personas }) });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to build creator ledger." });
     }
   });
 

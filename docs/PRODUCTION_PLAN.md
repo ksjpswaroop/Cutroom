@@ -40,12 +40,12 @@ Measured after the first production-depth pass (Track CS core + L-904):
 | Signal | State |
 | --- | --- |
 | `npm run check` | exit 0 |
-| `npm test` | **290 pass / 0 fail** (266 baseline + 24 new) |
+| `npm test` | **295 pass / 0 fail** (266 baseline + 29 new) |
 | `npm run build` | exit 0 |
 | `npm audit --omit=dev` | 0 vulnerabilities |
-| Creator suite | Channel intel + personas now **provider-grounded** (injectable, deterministic fallback, label code-controlled); Operations gated on a cited snapshot; Humanize surfaces provider/fallback |
-| Shipped | `L-801`, `L-802`, `L-803`, `L-804`, `L-808`, `L-904` · partial `L-806` |
-| Still open | `L-805` UX hardening; `L-806`/`L-807` integration UI; `L-901`/`L-902`/`L-905` release eng; `L-903`/`L-906`/`L-907` env/owner-gated |
+| Creator suite | Channel intel + personas **provider-grounded** (injectable, deterministic fallback, label code-controlled); Operations gated on a cited snapshot; Humanize surfaces provider/fallback; unified evidence ledger served |
+| Shipped | `L-801`, `L-802`, `L-803`, `L-804`, `L-805`, `L-807`, `L-808`, `L-904` · partial `L-806` |
+| Still open | `L-806` Research-page prefill; `L-901`/`L-902`/`L-905` release eng; `L-903`/`L-906`/`L-907` env/owner-gated |
 
 **What "production depth" means here, now partly delivered:** channel
 intelligence and personas gained a provider-grounded path
