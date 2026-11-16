@@ -13,6 +13,7 @@
 | **1.3** | Local images + desktop parity | Ollama/Comfy image path; teleprompter desktop mode (L-309); brand kit memory (L-308); Windows/Linux signed builds |
 | **1.4** | Research depth | Competitor/series workspace (L-311); calendar/batch (L-312); Shorts/clip briefs (L-313) |
 | **2.0** | Optional Studio mirror | OAuth read-only Studio metrics clearly separated from public snapshot (L-314); updater live; optional cloud sync decision |
+| **2.1** | **Creator Suite GA (current)** | Channels / Audience / Operations / Humanize to production depth (provider-grounded, workflow-linked, evidence-labeled); productionization blockers closed — CI stop-the-line, updater proof, rate-limit guard; Windows signing + live-provider pass tracked env/owner-gated ([PRODUCTION_PLAN.md](PRODUCTION_PLAN.md), `L-801+`/`L-901+`) |
 | **3.0** | Board + chosen render | Evidence-grounded Board; mode picker; **shoot myself** + **slides+voice** `render.mp4`; no YouTube upload ([V3_ROADMAP.md](V3_ROADMAP.md), `L-701+`) |
 | **3.1** | Cinematic Shorts | TS Script2Video stages (stills → Veo-class clips → concat); quote-before-run; optional ViMax-shaped export flag Off |
 
@@ -24,11 +25,16 @@
 - **Major (3.0):** Production Board + shoot / slides+voice (local-first; optional TTS/clone keys; no upload)
 - **Major (3.1):** Cinematic Shorts (optional video-generator key; still no upload)
 
-## Next version focus → **0.2 (Cutroom)**
+## Next version focus → **2.1 (Creator Suite GA)**
 
-See TRACKER IDs **L-601+** (Phase 6). P0 is `L-601`–`L-615`. P1 is `L-616`–`L-620`.
+See TRACKER Phase 8 (**L-801+**, creator suite to production depth) and Phase 9
+(**L-901+**, production blockers). The implementation plan — goals, parallel
+tracks, dependency graph, and TDD test specs — is [PRODUCTION_PLAN.md](PRODUCTION_PLAN.md).
+Code tracks (CS, INT, REL) ship the GA tag; `L-903`/`L-906`/`L-907` are
+env/owner-gated and tracked separately before "ship to strangers".
 
-After 0.2, resume **1.1** (`L-406`, `L-409`, leftover trust polish).
+> Historical note: phases 0–7 (the evidence desk through v3 Board) are shipped
+> and `done`. v0.2 and the 1.x/2.0/3.x themes below remain the architectural map.
 
 ## Non-goals through 1.x
 

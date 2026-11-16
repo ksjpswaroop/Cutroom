@@ -175,6 +175,35 @@ Closed in this pass, all re-verified with `npm run check` (exit 0), `npm test`
 - **Creator modules** folded in (Channels, Audience, Operations, Humanize) with
   evidence-labeled (`inferred`) contracts and new tests.
 
+---
+
+## Status — 2026-11-16 (creator-suite depth, pass 1)
+
+Closed in this pass (TDD — tests written first), all re-verified with
+`npm run check` (exit 0), `npm test` (**290 pass / 0 fail**, +24),
+`npm run build` (exit 0), `npm audit --omit=dev` (**0 vulnerabilities**):
+
+- **L-801 / L-802 — creator suite provider-grounded.** `generateChannelIntelligence`
+  and `generatePersona` / `generateAvatarMarkdown` take an injectable text
+  provider, ground in channel niche + `channelMemory`, and fall back to the
+  deterministic template on any failure. The `inferred` label and provider id
+  are stamped in code, never read from the model, so a model cannot relabel a
+  synthesized finding as `observed`. Wired at `/api/channels/intelligence`,
+  `/api/personas`, `/api/audience/avatar`.
+- **L-803 — Operations gated on evidence.** `productionItem` carries optional
+  `snapshotId` + `dueDate`; `moveProductionItem` rejects a move to `published`
+  unless a snapshot is cited.
+- **L-804 — Humanize honesty surfaced.** `humanizeSummary` renders "fully
+  rewritten" for a provider pass and a disclosed deterministic-fallback notice.
+- **L-808 — export artifacts.** `buildCreatorArtifacts` emits evidence-labeled
+  `creator/*` files, opt-in (empty input → no files).
+- **L-904 — rate-limit assumption guarded.** Explicit single-user/loopback
+  comment + `warnIfNonLoopbackHost` wired at startup. **Closes P1 #7.**
+
+Still open (code): `L-805` UX hardening, `L-806`/`L-807` integration UI,
+`L-901`/`L-902`/`L-905` release engineering. See
+[PRODUCTION_PLAN.md](PRODUCTION_PLAN.md).
+
 ### Still open — named blockers, not simulated
 
 - **Live-provider acceptance pass — OPEN.** Not run. It requires a clean Mac and

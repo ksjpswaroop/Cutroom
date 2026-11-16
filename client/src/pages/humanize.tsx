@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Copy, Loader2, Wand2 } from "lucide-react";
-import type { HumanizeResult } from "@shared/creator-modules";
+import { humanizeSummary, type HumanizeResult } from "@shared/creator-modules";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +12,9 @@ export default function HumanizePage() {
   const { toast } = useToast();
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
-  const [meta, setMeta] = useState<{ changes: number; provider: string } | null>(null);
+  const [result, setResult] = useState<HumanizeResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const summary = result ? humanizeSummary(result) : null;
 
   const run = async () => {
     if (!input.trim() || busy) return;
@@ -21,7 +22,7 @@ export default function HumanizePage() {
     try {
       const body = await apiRequest("POST", "/api/humanize", { text: input }) as { result: HumanizeResult };
       setOutput(body.result.output);
-      setMeta({ changes: body.result.changes, provider: body.result.provider });
+      setResult(body.result);
     } catch (err: any) {
       toast({ title: "Humanize failed", description: err?.message || "Try again.", variant: "destructive" });
     } finally {
@@ -64,12 +65,17 @@ export default function HumanizePage() {
             <div>
               <div className="flex items-center justify-between">
                 <b className="text-sm">Humanized</b>
-                {meta && (
-                  <Badge variant="outline">
-                    {meta.provider} · {meta.changes < 0 ? "rewritten" : `${meta.changes} edits`}
+                {summary && (
+                  <Badge variant={summary.isFallback ? "secondary" : "outline"}>
+                    {summary.provider} · {summary.headline}
                   </Badge>
                 )}
               </div>
+              {summary?.isFallback && (
+                <p className="mt-1 text-xs text-muted-foreground" data-testid="text-humanize-fallback">
+                  No provider configured — used the local deterministic rewrite. Configure a provider in Settings for a fuller rewrite.
+                </p>
+              )}
               <Textarea
                 className="mt-2 min-h-[300px]"
                 value={output}

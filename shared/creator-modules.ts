@@ -66,6 +66,10 @@ export const productionItemSchema = z.object({
   title: z.string().trim().min(1).max(200),
   stage: productionStageSchema,
   assignee: z.string().trim().max(80).optional(),
+  // L-803: an item may cite the research snapshot it came from, and carry a
+  // planned date. Publishing is gated on a cited snapshot (see creator-store).
+  snapshotId: z.string().trim().min(1).max(120).optional(),
+  dueDate: z.string().trim().min(1).max(40).optional(),
   createdAt: z.number().int().positive(),
 }).strict();
 
@@ -74,19 +78,29 @@ export type ProductionItem = z.infer<typeof productionItemSchema>;
 export const productionItemCreateSchema = z.object({
   channelId: z.string().trim().min(1).max(80),
   title: z.string().trim().min(1).max(200),
+  snapshotId: z.string().trim().min(1).max(120).optional(),
+  dueDate: z.string().trim().min(1).max(40).optional(),
 }).strict();
 
 export const productionItemMoveSchema = z.object({
   id: z.string().trim().min(1).max(80),
   stage: productionStageSchema,
   assignee: z.string().trim().max(80).optional(),
+  // Allow citing the snapshot at publish time (L-803 gate).
+  snapshotId: z.string().trim().min(1).max(120).optional(),
 }).strict();
+
+/** The stage that requires a cited workflow artifact before an item may enter it. */
+export const PUBLISH_STAGE: ProductionStage = "published";
 
 // ── Channel intelligence (inferred) ───────────────────────────────────────────
 
 export const channelIntelligenceRequestSchema = z.object({
   niche: z.string().trim().min(1).max(160),
   scriptTitles: z.array(z.string().trim().min(1).max(200)).max(200).default([]),
+  // L-806: when present, the handler grounds the synthesis in this channel's
+  // stored memory (production + persona counts, stage breakdown).
+  channelId: z.string().trim().min(1).max(80).optional(),
 }).strict();
 
 export const channelIntelligenceSchema = z.object({
@@ -140,6 +154,8 @@ export const audienceAvatarSchema = z.object({
   provider: z.string().trim().min(1).max(80),
 }).strict();
 
+export type AudienceAvatar = z.infer<typeof audienceAvatarSchema>;
+
 // ── Humanize (text transform, provider-backed) ─────────────────────────────────
 
 export const humanizeRequestSchema = z.object({
@@ -155,3 +171,24 @@ export const humanizeResultSchema = z.object({
 }).strict();
 
 export type HumanizeResult = z.infer<typeof humanizeResultSchema>;
+
+/**
+ * L-804: pure presentation summary for a humanize result. `changes === -1`
+ * means a provider rewrote the whole draft (edit count not meaningful);
+ * `provider === "deterministic"` means no model was available and the local
+ * phrasing pass ran instead, which the UI should disclose.
+ */
+export interface HumanizeSummary {
+  headline: string;
+  isFallback: boolean;
+  provider: string;
+}
+
+export function humanizeSummary(result: HumanizeResult): HumanizeSummary {
+  const isFallback = result.provider === "deterministic";
+  const headline =
+    result.changes === -1
+      ? `Fully rewritten by ${result.provider}`
+      : `${result.changes} phrasing ${result.changes === 1 ? "fix" : "fixes"} applied`;
+  return { headline, isFallback, provider: result.provider };
+}

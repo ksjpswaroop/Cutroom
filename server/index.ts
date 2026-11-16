@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { getEnvFilePaths } from "./env-path";
 import { recordDiagnostic } from "./diagnostics";
+import { warnIfNonLoopbackHost } from "./rate-limit";
 
 /**
  * Process-level safety net.
@@ -136,6 +137,8 @@ app.use((req, res, next) => {
 
   const port = parseInt(process.env.PORT || "5000", 10);
   const host = process.env.HOST || "127.0.0.1";
+  // L-904: surface the single-user/loopback assumption if someone binds wider.
+  warnIfNonLoopbackHost(host, (message) => log(message, "process"));
   const { root } = getEnvFilePaths();
   const secretsBackend = await (await import("./keychain")).resolveSecretsBackend();
   // A port collision is the most common launch failure and its raw stack says
