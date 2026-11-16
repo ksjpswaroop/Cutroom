@@ -14,7 +14,9 @@ describe("formatSchemaIssues", () => {
     const schema = z.object({ script: z.string().max(10) });
     const formatted = formatSchemaIssues(issuesFor(schema, { script: "far too long to fit" }));
     assert.match(formatted, /^script: /);
-    assert.match(formatted, /at most 10/);
+    // zod 4 phrases the max-length issue as "expected string to have <=10 characters";
+    // the contract is unchanged (field path + the 10-char limit surfaced for the repair prompt).
+    assert.match(formatted, /10 characters/);
   });
 
   test("renders nested array paths", () => {

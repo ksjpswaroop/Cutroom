@@ -152,6 +152,48 @@ Items 1–4 are a day. Item 5 is the one that decides whether this is shippable 
 
 ---
 
+## Status — 2026-11-15 (second pass)
+
+Closed in this pass, all re-verified with `npm run check` (exit 0), `npm test`
+(266 pass / 0 fail), `npm run build` (exit 0), and `npm audit --omit=dev`
+(**0 vulnerabilities**):
+
+- **`zod` high-severity advisory — cleared.** Migrated `zod` 3.25.76 → 4.6.7
+  (semver-major) across the contract layer. The only runtime break was the
+  removed `ZodError.errors` getter (→ `.issues`, 8 sites); one test that pinned
+  zod 3's literal max-length wording was re-pointed to zod 4's wording with the
+  same field-path and limit assertions. No contract behavior changed. `npm audit
+  --omit=dev` no longer reports `zod`.
+- **`engines`** set to `node >=20.19`.
+- **CI Actions** `actions/checkout` and `actions/cache` bumped off deprecated
+  Node 20 to `@v5` in both `ci.yml` and `desktop-packages.yml`.
+- **Diagnostics** — opt-in, local-only, redacted export added (`server/diagnostics.ts`,
+  Settings → "Export diagnostics…"). No telemetry; one user-chosen file.
+- **Financial files** untracked (`git rm --cached`, now gitignored). Working tree
+  retains them locally; history unchanged. Owner purge steps and blob/commit SHAs
+  recorded in [FINANCIAL_PURGE_REQUEST.md](FINANCIAL_PURGE_REQUEST.md).
+- **Creator modules** folded in (Channels, Audience, Operations, Humanize) with
+  evidence-labeled (`inferred`) contracts and new tests.
+
+### Still open — named blockers, not simulated
+
+- **Live-provider acceptance pass — OPEN.** Not run. It requires a clean Mac and
+  a throwaway, billable key, neither of which is available in this working
+  environment. **This item does not close until a written result exists for the
+  MiniMax Hailuo H3 quote-then-charge path** (and Gemini text/image, YouTube
+  Data API behavior at the 10,000-unit ceiling, keychain read/write on another
+  machine, and the OAuth Studio mirror against a real refresh token). The
+  checklist is in [DESKTOP.md](DESKTOP.md) (L-202, L-203, L-208). No pass has
+  been simulated or claimed.
+- **Windows signing — OPEN (gap recorded).** `cutroom-windows-x86_64.exe`
+  remains unsigned. Reaching the macOS Developer ID bar needs an Authenticode
+  code-signing certificate and a Windows signing host/CI runner, neither
+  available here. No signature has been produced or claimed; users still meet
+  SmartScreen until a certificate is in hand and wired into
+  `desktop-packages.yml`.
+
+---
+
 ## Related
 
 - [../TRACKER.md](../TRACKER.md) — feature ledger (all green; not a readiness signal)

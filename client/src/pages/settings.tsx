@@ -213,6 +213,7 @@ export default function SettingsPage() {
   const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState("");
   const [voiceConsent, setVoiceConsent] = useState(false);
   const [cinematicVeoEnabled, setCinematicVeoEnabled] = useState(false);
+  const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -335,6 +336,54 @@ export default function SettingsPage() {
     }
 
     await persistLibraryPath(libraryDraft || status.libraryPath || "");
+  };
+
+  const handleExportDiagnostics = async () => {
+    setDiagnosticsBusy(true);
+    try {
+      if (await isTauri()) {
+        // Desktop: the user picks the destination in a native save dialog, then
+        // the local server writes the redacted bundle to exactly that path.
+        const { save } = await import("@tauri-apps/plugin-dialog");
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        const target = await save({
+          defaultPath: `cutroom-diagnostics-${stamp}.json`,
+          filters: [{ name: "Diagnostics", extensions: ["json"] }],
+        });
+        if (!target) {
+          toast({ title: "Export cancelled", description: "No diagnostics file was written." });
+          return;
+        }
+        const result = await apiRequest("POST", "/api/diagnostics/export", { path: target }) as {
+          saved: boolean;
+          path: string;
+        };
+        toast({
+          title: "Diagnostics saved",
+          description: `Redacted bundle written to ${result.path}. Review it before sharing.`,
+        });
+        return;
+      }
+
+      // Web: the browser's own save dialog chooses the destination. The server
+      // sets the attachment filename.
+      const anchor = document.createElement("a");
+      anchor.href = "/api/diagnostics/export";
+      anchor.rel = "noopener";
+      anchor.click();
+      toast({
+        title: "Diagnostics downloading",
+        description: "A redacted diagnostics file was prepared. Review it before sharing.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Could not export diagnostics",
+        description: error?.message || "Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDiagnosticsBusy(false);
+    }
   };
 
   const handleClearLibrary = async () => {
@@ -826,6 +875,35 @@ export default function SettingsPage() {
           {!isDesktop && (
             <p className="text-xs text-muted-foreground">Open the Cutroom desktop app to check for updates.</p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5" />
+            Diagnostics
+          </CardTitle>
+          <CardDescription>
+            Cutroom sends no telemetry. If something goes wrong, export a redacted diagnostics file —
+            runtime details and recent server log lines with API keys, tokens, and emails removed — to a
+            location you choose, and review it before sharing. Nothing is sent anywhere automatically.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={diagnosticsBusy}
+            onClick={() => void handleExportDiagnostics()}
+            data-testid="button-export-diagnostics"
+          >
+            {diagnosticsBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Export diagnostics…
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Request and response bodies are never recorded. The file contains no API keys.
+          </p>
         </CardContent>
       </Card>
         </TabsContent>

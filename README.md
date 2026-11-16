@@ -58,6 +58,15 @@ The product follows one continuous workflow:
 
 There is no standalone Ideas screen. The legacy `/ideas` path redirects to the Ideas section inside Research.
 
+### Creator tools
+
+Alongside the core workflow, Cutroom keeps a set of local creator tools. They store their data on this machine and never call a remote service of their own:
+
+- **Channels**: manage one or more channels, switch the active workspace, and review inferred channel intelligence (performance, content gaps, growth recommendations, benchmark) plus per-channel memory. Channel intelligence is labeled **inferred** — synthesized strategy, never presented as observed fact.
+- **Audience**: generate inferred audience personas and build an exportable audience avatar (Markdown). Personas are labeled inferred and carry their limitations.
+- **Operations**: a Kanban production board — move work through Idea → Research → Scripting → Review → Published.
+- **Humanize**: strip robotic phrasing and improve flow. It runs through your active provider (Gemini, Ollama, OpenRouter, OpenAI-compatible, or MiniMax) and falls back to a deterministic local rewrite when no provider is configured.
+
 Each press of **New Workflow** creates a separate local project. On desktop, Settings asks you to choose a **library folder**; Cutroom stores each workflow in a topic-named subfolder (research, script, thumbnail, and package mirrors) and also keeps a browser IndexedDB mirror for fast resume. Without a library folder, workflows stay under the Cutroom app-data directory. The sidebar keeps the eight most recent workflows, lets the user rename or delete them, and reopens the last active Research, Script, Thumbnail, or Package step. After you run a research search, the workflow is auto-named from that topic. Uploaded reference images are intentionally not retained, so permission and file selection are fresh for every later generation.
 
 ## Requirements
@@ -83,7 +92,7 @@ Desktop shell:
 npm run tauri:dev
 ```
 
-See [ROADMAP.md](ROADMAP.md), [TRACKER.md](TRACKER.md), [docs/DESKTOP.md](docs/DESKTOP.md), and strategy docs: [docs/STRATEGY.md](docs/STRATEGY.md) · [docs/FEATURES.md](docs/FEATURES.md) · [docs/MODELS.md](docs/MODELS.md) · [docs/RELEASE_PLAN.md](docs/RELEASE_PLAN.md) · [docs/INVESTOR_BRIEF.md](docs/INVESTOR_BRIEF.md) · [docs/USER_STORY.md](docs/USER_STORY.md) · [docs/HERMES_DECISION.md](docs/HERMES_DECISION.md) · [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) · [docs/V3_FEATURES.md](docs/V3_FEATURES.md).
+See [ROADMAP.md](ROADMAP.md), [TRACKER.md](TRACKER.md), [docs/DESKTOP.md](docs/DESKTOP.md), [docs/PRODUCTIONIZATION.md](docs/PRODUCTIONIZATION.md), and strategy docs: [docs/STRATEGY.md](docs/STRATEGY.md) · [docs/FEATURES.md](docs/FEATURES.md) · [docs/MODELS.md](docs/MODELS.md) · [docs/RELEASE_PLAN.md](docs/RELEASE_PLAN.md) · [docs/USER_STORY.md](docs/USER_STORY.md) · [docs/HERMES_DECISION.md](docs/HERMES_DECISION.md) · [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) · [docs/V3_FEATURES.md](docs/V3_FEATURES.md).
 
 You can instead start without keys and enter them in **Settings**. Settings writes replacements to the ignored `.env` file with owner-only permissions. Saved values are never returned to the browser. Settings accepts direct loopback, same-origin requests only and rejects normal forwarded or reverse-proxy requests.
 
@@ -131,6 +140,14 @@ billed provider does.
 A 3B model is enough for scripts and titles. Larger local models (for example
 `gpt-oss:20b`) follow the evidence structure more closely, at the cost of speed
 and memory. Hosted providers remain the default and stay available per workflow.
+
+## More of the desk
+
+- **Brand kit + style memory**: voice, colors, thumbnail notes, and claims you never want invented, stored locally and applied to thumbnails and publish packages.
+- **Content calendar**: a local batch pipeline (theme → status) for planning a run of videos. No external calendar sync.
+- **Competitor / channel-first Research**: search `search.list` with a `channelId` to study one channel's public catalog, then carry the same snapshot into Insights, Ideas, Script, and Package.
+- **Signed desktop releases**: macOS builds are Developer ID signed, notarized, stapled, and Gatekeeper-green; the Tauri updater checks a signed GitHub `latest.json`. Windows and Linux packages are produced in CI (Windows signing is in progress — see [docs/PRODUCTIONIZATION.md](docs/PRODUCTIONIZATION.md)).
+- **Diagnostics**: no telemetry. Settings can export a redacted, local-only diagnostics file (runtime details and recent server log lines with keys, tokens, and emails removed) for you to review before sharing.
 
 ## Data and request limits
 

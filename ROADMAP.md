@@ -79,5 +79,4 @@ Strategy baseline (competitors, moat, Hermes decision, investor/user pitches): [
 | Competitive / moat | [docs/STRATEGY.md](docs/STRATEGY.md) |
 | Models plan | [docs/MODELS.md](docs/MODELS.md) |
 | Release train | [docs/RELEASE_PLAN.md](docs/RELEASE_PLAN.md) |
-| Investor brief | [docs/INVESTOR_BRIEF.md](docs/INVESTOR_BRIEF.md) |
 | User pitch | [docs/USER_STORY.md](docs/USER_STORY.md) |

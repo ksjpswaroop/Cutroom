@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { getEnvFilePaths } from "./env-path";
+import { recordDiagnostic } from "./diagnostics";
 
 /**
  * Process-level safety net.
@@ -59,6 +60,9 @@ export function log(message: string, source = "express") {
   });
 
   console.log(`${formattedTime} [${source}] ${message}`);
+  // Feed the opt-in, local-only diagnostics ring. The recorder redacts anything
+  // that looks like a secret or an email before it is kept.
+  recordDiagnostic(message, source);
 }
 
 app.use((req, res, next) => {

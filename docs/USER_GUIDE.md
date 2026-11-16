@@ -196,4 +196,3 @@ Details: [guides/board-render-and-calendar.md](guides/board-render-and-calendar.
 - [user-flows.md](user-flows.md)
 - [FEATURES.md](FEATURES.md)
 - [demos/README.md](demos/README.md)
-- [INVESTOR_PITCH.md](INVESTOR_PITCH.md)
