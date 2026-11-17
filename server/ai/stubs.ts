@@ -6,6 +6,7 @@ const STUB_LABELS: Record<Exclude<AiProviderId, "gemini">, string> = {
   ollama: "Ollama",
   openrouter: "OpenRouter",
   minimax: "MiniMax",
+  anthropic: "Anthropic (Claude)",
 };
 
 /**

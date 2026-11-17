@@ -181,6 +181,8 @@ function aiProviderLabel(id: AiProviderId): string {
       return "OpenAI-compatible";
     case "minimax":
       return "MiniMax";
+    case "anthropic":
+      return "Anthropic (Claude)";
     default: {
       const _exhaustive: never = id;
       return _exhaustive;

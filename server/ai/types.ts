@@ -9,6 +9,7 @@ export const AI_PROVIDER_IDS = [
   "ollama",
   "openrouter",
   "minimax",
+  "anthropic",
 ] as const;
 
 export type AiProviderId = (typeof AI_PROVIDER_IDS)[number];

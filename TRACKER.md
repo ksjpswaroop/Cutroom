@@ -6,6 +6,7 @@ Update this file when work starts or finishes. See [ROADMAP.md](ROADMAP.md) for 
 
 **Next version:** [v2.1 Creator Suite GA](#phase-9--production-ga-v21) (`L-801+`, `L-901+`). Plan: [docs/PRODUCTION_PLAN.md](docs/PRODUCTION_PLAN.md). Version map: [docs/RELEASE_PLAN.md](docs/RELEASE_PLAN.md).
 **After GA:** [v2.2 Go-to-market](#phase-10--go-to-market-v22-market-readiness) (`G-001+`) — release blockers, commercial model (Gate 0), samples + testing. Plan: [docs/GTM_ROADMAP.md](docs/GTM_ROADMAP.md).
+**Production sign-off:** [v2.3](#phase-11--full-production-sign-off-v23) (`PS-001+`) — multi-provider connect/sign-in, image+video generator APIs, cinematic Veo-class path, publishing (gated), live sign-off. Plan: [docs/PRODUCTION_SIGNOFF_TRACKER.md](docs/PRODUCTION_SIGNOFF_TRACKER.md).
 
 > Phases 0–7 are the shipped evidence desk + v3 Board (all `done`). The **open
 > work** is Phase 8 (creator suite to production depth) and Phase 9 (production
@@ -418,3 +419,94 @@ fake-publish and the retired store/credits stay out regardless of the model.
 - A hosted/non-loopback surface **without** an explicit auth + security design (gated behind `G-001` = C only)
 - The agent entering payment credentials, running a live transaction, flipping Stripe to live, or publishing to production (all **owner actions**)
 - Telemetry (diagnostics stay opt-in, local-only, one user-chosen file)
+
+## Phase 11 — Full production sign-off (v2.3)
+
+Theme: real, live, working production sign-off — the multi-provider connect layer
+(Claude / OpenAI-Codex / Cursor / Ollama + router / OpenAI-style / Anthropic /
+OpenRouter keys), image + video generator APIs, Gemini rendering, the **cinematic
+Veo-class generation path**, and publishing — built under TDD across parallel
+tracks. Full goals, dependency graph, waves, and TDD specs:
+[docs/PRODUCTION_SIGNOFF_TRACKER.md](docs/PRODUCTION_SIGNOFF_TRACKER.md).
+
+Three **owner decision gates** block the gated tracks. The provider/media/render
+tracks are buildable now by extending `server/ai/` + `server/render-engine.ts`.
+Standing boundary: **auto-publishing reverses a test-enforced non-goal** and is
+gated (`PS-001`); live sign-off needs owner-only resources (billable keys, cert,
+signed install); the agent never auto-publishes, enters credentials, deploys, or
+pushes `main`.
+
+### Decision gates (owner)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| PS-001 | todo | Publishing direction: (a) keep excluded · (b) user-initiated consented upload (OAuth + confirm) · (c) scheduled opt-in. Reverses the `videos.insert` non-goal + YouTube ToS + the publishing safety rule. Gates Track PUBLISH. Default (b) |
+| PS-002 | todo | Cinematic scope: keep Shorts-first (≤5 shots, ≤120s/shot) or lift the cap for long-form. Gates Track RENDER length. Default: keep, add length behind a setting |
+| PS-003 | todo | Provider semantics: confirm "Omnirouter" / "Codex" / "Cursor" as inference providers and which are API-key vs OAuth sign-in (Anthropic/OpenAI/OpenRouter are key-based). Gates `PS-102`/`PS-103`/`PS-105` |
+
+### Track PROV — provider connections & sign-in (extends `server/ai/`)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| PS-101 | done | Anthropic (Claude) text provider: `anthropic` added to `AI_PROVIDER_IDS`; `server/ai/anthropic-adapter.ts` (`/v1/messages`, `x-api-key`, `anthropic-version`, injectable config, fails closed on missing key); wired in registry (`index.ts`), stubs, and `settings.ts` labels. TDD: `server/ai/anthropic-adapter.test.ts` (4 tests, mocked fetch, no live call). Also widened the `npm test` glob to include `server/ai/*.test.ts` (adapter tests were being skipped). 303 tests green. **Left:** Settings UI entry (part of `PS-105`) |
+| PS-102 | todo | OpenAI / Codex via `openai_compatible` (base URL + key + model presets); new adapter only if `PS-003` requires |
+| PS-103 | todo | OpenRouter + unified "Omnirouter" router as configurable `openai_compatible` base URL/key (pending `PS-003`) |
+| PS-104 | todo | Ollama local (no sign-in): verify multi-model; labeled offline/key-less |
+| PS-105 | blocked | Unified Connections Settings surface: per-provider key entry + validation + status; OAuth "Connect" only where a provider offers it (`PS-003`). Keys app-data/keychain, never WebView |
+| PS-106 | todo | Shared provider conformance test kit (text/image/video), fakes only |
+
+### Track MEDIA — image & video generator APIs (extends `server/ai/`)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| PS-201 | todo | `AiVideoProvider` abstraction + `AI_VIDEO_PROVIDER_IDS`, mirroring `AiImageProvider`; wrap `minimax-h3.ts`; quote-then-charge in the type. TDD first |
+| PS-202 | todo | Veo-class + additional video adapters behind the abstraction; injectable; deterministic stub in tests |
+| PS-203 | todo | Image generator breadth: confirm gemini/ollama/minimax; optional OpenAI-images under `openai_compatible` |
+| PS-204 | todo | Gemini-for-rendering: wire `gemini-image-adapter` into stills/cards + cinematic storyboard stills (respect `storyboardStillsEnabled` Off) |
+
+### Track RENDER — cinematic Veo-class path (extends `server/render-engine.ts`)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| PS-301 | todo | Real cinematic pipeline: stills → clips (video provider) → FFmpeg concat → shared consented voice; quote-before-run; shot cap per `PS-002`; `usesVeo` true only when configured + enabled. TDD first |
+| PS-302 | todo | Voice + consent: shared profile; clone requires `CUTROOM_VOICE_CONSENT`; never clone snapshot voices (existing guard kept) |
+| PS-303 | todo | Export `render.mp4` into the pack; `evidenceClass: inferred` |
+| PS-304 | blocked | Live cinematic acceptance (**= `L-906`**): MiniMax/Veo-class quote-then-charge on a billable key (clean Mac + key). Recorded, never simulated |
+
+### Track PUBLISH — publishing (**gated on `PS-001`**; user-consented only)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| PS-401 | blocked | OAuth upload scope on the Studio mirror, user-consented; status + revoke in Settings. Gated on `PS-001` |
+| PS-402 | blocked | Consented publish flow: confirm-before-upload, quota-aware; retires the `videos.insert` guard test **only if `PS-001` approves**, with the ToS note recorded. Gated on `PS-001` |
+| PS-403 | blocked | Scheduled publish (optional, explicit opt-in); still user-authorized per run; never autonomous. Default Off. Gated on `PS-001` |
+
+### Track SIGNOFF — release & live sign-off (references `L-9xx`)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| PS-501 | todo | Branch protection (`L-901`, owner GitHub setting) |
+| PS-502 | blocked | Updater end-to-end proof (`L-902`, needs a signed install) |
+| PS-503 | blocked | Windows signing (`L-903`, Authenticode cert) |
+| PS-504 | blocked | Live-provider acceptance (`L-906`, billable key) incl. MiniMax |
+| PS-505 | blocked | Financial-history purge (`L-907`, **owner only**) |
+| PS-506 | blocked | Run packaging + release checklist; tag + notes (**owner**; agent never deploys/tags) |
+
+### Track QA — TDD harness, samples, E2E (builds on GTM `G-101+`/`G-201+`)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| PS-601 | todo | Provider conformance tests (every adapter, fakes only) |
+| PS-602 | todo | Media (image/video) contract tests with deterministic stubs + quote assertions |
+| PS-603 | todo | Cinematic render contract tests (`usesVeo` gating, shot cap, quote-before-run) |
+| PS-604 | blocked | Publish contract tests (scope/consent gating, mock upload, idempotency). Gated on `PS-001` |
+| PS-605 | todo | Headless E2E pipeline + deterministic sample generation (`G-101`/`G-201`) |
+| PS-606 | blocked | Live acceptance recording (owner-run) |
+
+### Non-goals for v2.3
+
+- Auto-publishing that the **agent** performs autonomously or unattended (any publish is user-initiated + consented; `PS-001` decides the direction)
+- Any `observed` creator/media claim, or a claim with no evidence label
+- Live provider/billing calls in automated tests (fakes / deterministic stubs only)
+- A hosted/non-loopback surface without an explicit auth + security design
+- The agent entering credentials, running a live transaction, deploying, or pushing `main`

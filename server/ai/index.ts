@@ -1,3 +1,4 @@
+import { createAnthropicTextProvider } from "./anthropic-adapter";
 import { createGeminiTextProvider } from "./gemini-adapter";
 import { createGeminiImageProvider } from "./gemini-image-adapter";
 import { createMiniMaxTextProvider } from "./minimax-adapter";
@@ -38,7 +39,7 @@ export {
 
 /**
  * Resolve the active text provider.
- * Env: `CUTROOM_AI_PROVIDER` = gemini | openai_compatible | ollama | openrouter | minimax (default: gemini).
+ * Env: `CUTROOM_AI_PROVIDER` = gemini | openai_compatible | ollama | openrouter | minimax | anthropic (default: gemini).
  */
 export function resolveAiProviderId(
   raw: string | undefined = process.env.CUTROOM_AI_PROVIDER,
@@ -60,6 +61,8 @@ export function getTextProvider(providerId?: AiProviderId): AiTextProvider {
       return createOpenRouterTextProvider();
     case "minimax":
       return createMiniMaxTextProvider();
+    case "anthropic":
+      return createAnthropicTextProvider();
     default: {
       const _exhaustive: never = id;
       return _exhaustive;
