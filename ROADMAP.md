@@ -27,6 +27,7 @@ Portable boundaries (unchanged from [PORTING.md](PORTING.md)):
 - Evidence / AI: `server/gemini.ts`, `shared/evidence-contracts.ts`
 - Thumbnail: `server/thumbnail-contract.ts`, `server/gemini-models.ts`
 - Client workflow: Research, Script, Thumbnail, Package, Settings + `workflow-context.tsx`
+- Creator suite (folded from CreatorForge): `shared/creator-modules.ts`, `server/creator-ai.ts`, `server/creator-store.ts` + Channels / Audience / Operations / Humanize pages — all findings `inferred`, never `observed`
 
 The WebView must load the Express origin so loopback Settings checks in `server/settings.ts` keep working.
 
@@ -42,6 +43,13 @@ The WebView must load the Express origin so loopback Settings checks in `server/
 | **5** Research depth & optional Studio | Competitor workspace, calendar, clip briefs, OAuth Studio mirror (labeled) |
 | **6** Cutroom v0.2 | Cutroom rebrand, script throughline, caption/comment Insights, assemble-only preview ([TRACKER.md](TRACKER.md) `L-601+`) |
 | **7** Production board v3 | One Board; shoot / slides+voice / cinematic; no upload ([docs/V3_ROADMAP.md](docs/V3_ROADMAP.md), `L-701+`) |
+| **8** Creator suite depth | Channels / Audience / Operations / Humanize (folded from CreatorForge) to production depth — provider-grounded, workflow-linked, evidence-labeled ([TRACKER.md](TRACKER.md) `L-801+`) |
+| **9** Production GA (v2.1) | Close productionization blockers: CI stop-the-line, updater proof, rate-limit guard, Windows signing, live-provider pass ([docs/PRODUCTION_PLAN.md](docs/PRODUCTION_PLAN.md), `L-901+`) |
+
+**Current focus → v2.1 Creator Suite GA.** The implementation plan — organized
+goals, dependency-ordered **parallel tracks**, and **TDD test specs** — is
+[docs/PRODUCTION_PLAN.md](docs/PRODUCTION_PLAN.md). Readiness blockers:
+[docs/PRODUCTIONIZATION.md](docs/PRODUCTIONIZATION.md).
 
 Strategy baseline (competitors, moat, Hermes decision, investor/user pitches): [docs/STRATEGY.md](docs/STRATEGY.md). v3 Board + render: [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) · [docs/V3_FEATURES.md](docs/V3_FEATURES.md).
 
@@ -74,6 +82,8 @@ Strategy baseline (competitors, moat, Hermes decision, investor/user pitches): [
 
 | Version | Doc |
 | --- | --- |
+| **Production plan (current)** | [docs/PRODUCTION_PLAN.md](docs/PRODUCTION_PLAN.md) |
+| Readiness blockers | [docs/PRODUCTIONIZATION.md](docs/PRODUCTIONIZATION.md) |
 | Feature inventory | [docs/FEATURES.md](docs/FEATURES.md) |
 | v3 Board + render | [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) · [docs/V3_FEATURES.md](docs/V3_FEATURES.md) |
 | Competitive / moat | [docs/STRATEGY.md](docs/STRATEGY.md) |

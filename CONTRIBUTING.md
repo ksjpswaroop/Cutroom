@@ -23,6 +23,37 @@ npm run build
 
 The automated suite uses fixtures and mocks. It must not spend YouTube or Gemini quota.
 
+## CI is stop-the-line (L-901)
+
+`main` must stay green. The `verify` job (contract tests, `tsc`, production
+build) and `cargo-check` run on every PR and push.
+
+- A red `main` is a stop-the-line event: fix or revert before new work merges.
+  CI on `main` was red and unnoticed from 2026-08-29 until 2026-11-15; the fix is
+  to treat red as blocking, not advisory.
+- **Repository admin:** enable branch protection on `main` requiring the
+  `verify` and `cargo-check` checks to pass before merge, and require the branch
+  to be up to date. This is a GitHub setting (Settings → Branches), not a code
+  change, so it cannot land in a PR — enable it once on the repository.
+- Do not merge a PR with failing or missing required checks.
+
+## Reproducible desktop builds (L-905)
+
+Desktop release artifacts must build from a clean checkout and the committed
+lockfile, never from whatever `node_modules` happens to be on the machine
+(`node_modules` once vanished mid-session; `npm ci` restored a green build):
+
+```bash
+git clean -xdn            # review what would be removed first
+npm ci                    # install exactly from package-lock.json
+npm run check && npm test && npm run build
+npm run desktop:build:macos
+```
+
+Release builds run `npm ci`, not `npm install`. If `npm ci` fails, the lockfile
+is out of sync — fix the lockfile, don't reach for `npm install` on the release
+machine.
+
 ## Pull requests
 
 - Keep each change focused and explain its user-facing effect.

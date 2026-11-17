@@ -1,5 +1,6 @@
-import { getTextProvider, resolveAiProviderId } from "./ai";
+import { getTextProvider, resolveAiProviderId, type AiTextProvider } from "./ai";
 import { extractJsonText } from "./ai/json-extract";
+import type { ChannelMemory } from "./creator-store";
 import {
   audienceAvatarSchema,
   audiencePersonaSchema,
@@ -9,6 +10,30 @@ import {
   type ChannelIntelligence,
   type HumanizeResult,
 } from "@shared/creator-modules";
+
+/**
+ * Options for the provider-grounded generators (L-801 / L-802). A caller may
+ * inject a text provider (tests pass a fake; production omits it and the active
+ * Cutroom provider is resolved) and optional grounding context. When no provider
+ * is configured or the call fails, each generator returns its deterministic
+ * fallback — the label stays `inferred` on every path, and is never taken from
+ * provider output, so a model cannot relabel a synthesized finding as observed.
+ */
+export interface CreatorGenOptions {
+  provider?: AiTextProvider;
+  memory?: ChannelMemory;
+}
+
+const asText = (value: unknown, max: number): string =>
+  typeof value === "string" ? value.trim().slice(0, max) : "";
+
+const asTextList = (value: unknown, max: number, itemMax: number): string[] =>
+  Array.isArray(value)
+    ? value
+        .map((item) => asText(item, itemMax))
+        .filter((item) => item.length > 0)
+        .slice(0, max)
+    : [];
 
 /**
  * Creator-intelligence generators folded into Cutroom. Channel intelligence,
@@ -95,6 +120,72 @@ export function analyzeChannelIntelligence(niche: string, scriptTitles: string[]
   return channelIntelligenceSchema.parse(bundle);
 }
 
+function channelPrompt(niche: string, scriptTitles: string[], memory?: ChannelMemory): string {
+  const lines = [
+    "You are a YouTube channel strategist. Analyze this channel and return strategy.",
+    `Niche: ${niche || "(unspecified)"}`,
+    `Drafted script count: ${scriptTitles.length}`,
+  ];
+  if (scriptTitles.length) lines.push(`Recent titles: ${scriptTitles.slice(0, 20).join(" | ")}`);
+  if (memory) {
+    lines.push(
+      `Channel memory — production items: ${memory.production}, personas: ${memory.personas}, ` +
+        `stage breakdown: ${Object.entries(memory.stageBreakdown)
+          .map(([stage, count]) => `${stage}=${count}`)
+          .join(", ")}.`,
+    );
+  }
+  lines.push(
+    "",
+    "Return ONLY JSON of the form",
+    '{"performance":"<one paragraph>","gaps":["<gap>",...],"growth":["<idea>",...],"benchmark":"<one paragraph>"}.',
+    "Do not include scores, view counts, or any claim you cannot ground in the inputs above.",
+  );
+  return lines.join("\n");
+}
+
+/**
+ * L-801: provider-grounded channel intelligence. Synthesizes performance / gaps /
+ * growth / benchmark through the active (or injected) text provider, grounded in
+ * the niche, drafted titles, and channel memory. The `inferred` label and the
+ * limitations are stamped by this code, never read from the model, so no path can
+ * emit an `observed` or unlabeled finding. Falls back to the deterministic
+ * template when no provider is configured or the call/parse fails.
+ */
+export async function generateChannelIntelligence(
+  niche: string,
+  scriptTitles: string[],
+  opts: CreatorGenOptions = {},
+): Promise<ChannelIntelligence> {
+  const fallback = analyzeChannelIntelligence(niche, scriptTitles);
+  try {
+    const provider = opts.provider ?? getTextProvider(resolveAiProviderId());
+    const result = await provider.completeJson({ prompt: channelPrompt(niche, scriptTitles, opts.memory) });
+    const parsed = JSON.parse(extractJsonText(result.text)) as Record<string, unknown>;
+    const performance = asText(parsed.performance, 2_000);
+    const gaps = asTextList(parsed.gaps, 8, 2_000);
+    const growth = asTextList(parsed.growth, 8, 2_000);
+    const benchmark = asText(parsed.benchmark, 2_000);
+    if (performance && gaps.length && growth.length && benchmark) {
+      return channelIntelligenceSchema.parse({
+        niche: niche.trim() || "your niche",
+        evidenceClass: "inferred" as const, // code-controlled; never from the model
+        confidence: "low" as const,
+        performance,
+        gaps,
+        growth,
+        benchmark,
+        limitations: CHANNEL_LIMITATIONS,
+        provider: result.providerId,
+        generatedAt: new Date().toISOString(),
+      });
+    }
+  } catch {
+    // No provider configured, or the call/parse failed — deterministic fallback.
+  }
+  return fallback;
+}
+
 // ── Audience persona + avatar (inferred) ────────────────────────────────────────
 
 const PERSONA_LIMITATIONS = [
@@ -155,6 +246,101 @@ export function buildAvatarMarkdown(channelName: string, niche: string) {
     markdown,
     evidenceClass: "inferred" as const,
     provider: "deterministic",
+  });
+}
+
+function personaPrompt(channelName: string, niche: string): string {
+  return [
+    "You are an audience researcher. Build one synthesized audience persona for this channel.",
+    `Channel: ${channelName}`,
+    `Niche: ${niche || "(unspecified)"}`,
+    "",
+    "Return ONLY JSON of the form",
+    '{"name":"<persona name>","demographics":"<one line>","intent":"<one line>",' +
+      '"messaging":"<one line>","painPoints":["<pain>",...],"interests":["<interest>",...]}.',
+    "This is a synthesized archetype, not measured data. Do not invent analytics or counts.",
+  ].join("\n");
+}
+
+/**
+ * L-802: provider-grounded audience persona. Synthesizes the persona fields
+ * through the active (or injected) provider; the `inferred` label, limitations,
+ * ids, and timestamps are code-controlled. Falls back to the deterministic
+ * persona when no provider is configured or the call/parse fails.
+ */
+export async function generatePersona(
+  id: string,
+  channelId: string,
+  channelName: string,
+  niche: string,
+  opts: CreatorGenOptions = {},
+): Promise<AudiencePersona> {
+  const fallback = buildPersona(id, channelId, channelName, niche);
+  try {
+    const provider = opts.provider ?? getTextProvider(resolveAiProviderId());
+    const result = await provider.completeJson({ prompt: personaPrompt(channelName, niche) });
+    const parsed = JSON.parse(extractJsonText(result.text)) as Record<string, unknown>;
+    const name = asText(parsed.name, 120);
+    const demographics = asText(parsed.demographics, 2_000);
+    const intent = asText(parsed.intent, 2_000);
+    const messaging = asText(parsed.messaging, 2_000);
+    const painPoints = asTextList(parsed.painPoints, 8, 2_000);
+    const interests = asTextList(parsed.interests, 12, 80);
+    if (name && demographics && intent && messaging && painPoints.length && interests.length) {
+      return audiencePersonaSchema.parse({
+        id,
+        channelId,
+        name,
+        demographics,
+        intent,
+        messaging,
+        painPoints,
+        interests,
+        evidenceClass: "inferred" as const, // code-controlled; never from the model
+        limitations: PERSONA_LIMITATIONS,
+        provider: result.providerId,
+        createdAt: Date.now(),
+      });
+    }
+  } catch {
+    // No provider configured, or the call/parse failed — deterministic fallback.
+  }
+  return fallback;
+}
+
+/**
+ * L-802: provider-grounded audience avatar markdown. Builds the avatar from a
+ * (possibly provider-generated) persona, keeping the "synthesized, not measured"
+ * disclosure line. Falls back to the deterministic avatar on any failure.
+ */
+export async function generateAvatarMarkdown(
+  channelName: string,
+  niche: string,
+  opts: CreatorGenOptions = {},
+) {
+  const persona = await generatePersona("preview", "preview", channelName, niche, opts);
+  const markdown = [
+    `# Audience Avatar — ${persona.name}`,
+    "",
+    `**Channel:** ${channelName}`,
+    "",
+    `**Demographics:** ${persona.demographics}`,
+    "",
+    "**Behavioral segments:**",
+    "- Skimmers — need chapters and tight pacing",
+    "- Doers — want step-by-step they can follow along",
+    "- Researchers — want sources and nuance",
+    "",
+    `**Intent:** ${persona.intent}`,
+    "",
+    `**Messaging optimization:** ${persona.messaging}`,
+    "",
+    "_Inferred audience archetype — synthesized, not measured from YouTube Studio._",
+  ].join("\n");
+  return audienceAvatarSchema.parse({
+    markdown,
+    evidenceClass: "inferred" as const,
+    provider: persona.provider,
   });
 }
 

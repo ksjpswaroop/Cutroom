@@ -18,6 +18,7 @@ import {
   type ResearchReportData,
 } from "@/lib/research-export";
 import { useWorkflow } from "@/lib/workflow-context";
+import { useActiveChannel } from "@/lib/active-channel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -273,6 +274,33 @@ export default function ResearchDashboard() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
+  // L-806: seed the search box from the active channel's niche, once, and only
+  // when nothing is already typed or restored — the user's input always wins.
+  const { activeChannelId } = useActiveChannel();
+  const [prefilledFrom, setPrefilledFrom] = useState<string | null>(null);
+  const nichePrefillRef = useRef(false);
+  useEffect(() => {
+    if (nichePrefillRef.current || !activeChannelId) return;
+    if (searchQuery.trim() || submittedQuery.trim()) return;
+    nichePrefillRef.current = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/channels", { cache: "no-store" });
+        if (!response.ok) return;
+        const body = await response.json();
+        const channel = (body.channels || []).find((c: { id: string }) => c.id === activeChannelId) as
+          | { name?: string; niche?: string }
+          | undefined;
+        const niche = channel?.niche?.trim();
+        if (niche) {
+          setSearchQuery((current) => (current.trim() ? current : niche));
+          setPrefilledFrom(channel?.name || "your channel");
+        }
+      } catch {
+        // Best-effort prefill only; never block Research on it.
+      }
+    })();
+  }, [activeChannelId, searchQuery, submittedQuery]);
   const [uploadDate, setUploadDate] = useState<UploadDateFilter>(UploadDateFilter.ANY);
   const [duration, setDuration] = useState<DurationFilter>(DurationFilter.ANY);
   const [sortBy, setSortBy] = useState<SortBy>(SortBy.RELEVANCE);
@@ -1257,6 +1285,12 @@ export default function ResearchDashboard() {
                 Search
               </Button>
             </div>
+
+            {prefilledFrom && searchQuery.trim() && (
+              <p className="mt-2 text-xs text-muted-foreground" data-testid="text-niche-prefill">
+                Prefilled from {prefilledFrom}'s niche — edit or clear it to search something else.
+              </p>
+            )}
 
             <SearchFilters
               uploadDate={uploadDate}

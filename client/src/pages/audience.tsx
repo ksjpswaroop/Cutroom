@@ -1,6 +1,19 @@
 import { useEffect, useState } from "react";
-import { Download, Loader2, Trash2, Users } from "lucide-react";
+import { Download, Loader2, ScrollText, Trash2, Users } from "lucide-react";
 import type { AudiencePersona, Channel } from "@shared/creator-modules";
+
+type CreatorLedgerEntry = {
+  module: "channel-intelligence" | "persona" | "avatar";
+  title: string;
+  evidenceClass: string;
+  provider: string;
+};
+
+const LEDGER_MODULE_LABELS: Record<CreatorLedgerEntry["module"], string> = {
+  "channel-intelligence": "Channel strategy",
+  persona: "Persona",
+  avatar: "Avatar",
+};
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +34,7 @@ export default function AudiencePage() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const { activeChannelId, setActiveChannelId } = useActiveChannel();
   const [personas, setPersonas] = useState<AudiencePersona[]>([]);
+  const [ledger, setLedger] = useState<CreatorLedgerEntry[]>([]);
   const [avatar, setAvatar] = useState("");
   const [busyPersona, setBusyPersona] = useState(false);
   const [busyAvatar, setBusyAvatar] = useState(false);
@@ -41,9 +55,20 @@ export default function AudiencePage() {
     })();
   }, []);
 
+  const loadLedger = async (channelId: string) => {
+    try {
+      const response = await fetch(`/api/creator/ledger?channelId=${encodeURIComponent(channelId)}`, { cache: "no-store" });
+      const body = await response.json();
+      if (response.ok) setLedger(body.entries || []);
+    } catch {
+      setLedger([]);
+    }
+  };
+
   useEffect(() => {
     if (!active) {
       setPersonas([]);
+      setLedger([]);
       return;
     }
     void (async () => {
@@ -55,6 +80,7 @@ export default function AudiencePage() {
         setPersonas([]);
       }
     })();
+    void loadLedger(active.id);
   }, [active?.id]);
 
   const generatePersona = async () => {
@@ -67,6 +93,7 @@ export default function AudiencePage() {
         niche: active.niche || "",
       }) as { persona: AudiencePersona };
       setPersonas((current) => [body.persona, ...current]);
+      if (active) void loadLedger(active.id);
     } catch (err: any) {
       toast({ title: "Could not generate persona", description: err?.message || "Try again.", variant: "destructive" });
     } finally {
@@ -79,6 +106,7 @@ export default function AudiencePage() {
     setPersonas((current) => current.filter((p) => p.id !== id));
     try {
       await apiRequest("DELETE", `/api/personas/${encodeURIComponent(id)}`);
+      if (active) void loadLedger(active.id);
     } catch (err: any) {
       setPersonas(previous);
       toast({ title: "Delete failed", description: err?.message || "Try again.", variant: "destructive" });
@@ -201,6 +229,38 @@ export default function AudiencePage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><ScrollText className="h-4 w-4" />Evidence ledger</CardTitle>
+          <CardDescription>
+            Every creator finding for this channel, labeled by evidence class. These are synthesized
+            strategy — <b>inferred</b>, never observed from a research snapshot.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {ledger.length === 0 ? (
+            <p className="text-sm text-muted-foreground" data-testid="text-ledger-empty">
+              No creator findings yet. Generate a persona to populate the ledger.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border" data-testid="list-creator-ledger">
+              {ledger.map((entry, i) => (
+                <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Badge variant="secondary">{LEDGER_MODULE_LABELS[entry.module] ?? entry.module}</Badge>
+                    <span className="min-w-0 break-words">{entry.title}</span>
+                  </span>
+                  <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>via {entry.provider}</span>
+                    <Badge variant="outline">{entry.evidenceClass}</Badge>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

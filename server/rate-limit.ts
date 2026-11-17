@@ -7,10 +7,36 @@ export interface RateLimiterOptions {
   now?: () => number;
 }
 
+const LOOPBACK_HOSTS = new Set(["", "localhost", "127.0.0.1", "::1", "[::1]", "0:0:0:0:0:0:0:1"]);
+
+/**
+ * L-904: this limiter keeps per-token state in memory and resets on restart.
+ * That is correct **only** for the single-user, loopback-bound desktop posture
+ * (one process, one human). It silently stops being correct the moment a
+ * multi-user or hosted surface is added — the bucket is not shared across
+ * processes and the token (client IP) is trivially spoofable behind a proxy.
+ * If a non-loopback `HOST` is ever set, `warnIfNonLoopbackHost` surfaces the
+ * assumption instead of letting it fail silently.
+ */
+export function warnIfNonLoopbackHost(
+  host: string | undefined = process.env.HOST,
+  log: (message: string) => void = console.warn,
+): boolean {
+  const normalized = (host ?? "").trim().toLowerCase();
+  if (LOOPBACK_HOSTS.has(normalized)) return false;
+  log(
+    `[cutroom] HOST is "${host}" (non-loopback). The in-memory rate limiter and ` +
+      "loopback-only Settings guard assume a single-user local process; a shared " +
+      "or hosted surface needs a distributed limiter and an auth design before binding here.",
+  );
+  return true;
+}
+
 /**
  * In-process token bucket for expensive provider routes.
  * Default ceiling is intentionally higher than a single Research→Ideas→Script
  * burst so Insights + Ideas can complete back-to-back on one machine.
+ * See `warnIfNonLoopbackHost` for the single-user/loopback assumption.
  */
 export function createRateLimiter(options: RateLimiterOptions = {}) {
   const maxRequests = options.maxRequests ?? 48;

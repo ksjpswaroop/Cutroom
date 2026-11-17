@@ -77,7 +77,13 @@ import {
   newPersonaId,
   updateChannel,
 } from "./creator-store";
-import { analyzeChannelIntelligence, buildAvatarMarkdown, buildPersona, humanizeText } from "./creator-ai";
+import {
+  generateAvatarMarkdown,
+  generateChannelIntelligence,
+  generatePersona,
+  humanizeText,
+} from "./creator-ai";
+import { buildCreatorLedger } from "./creator-ledger";
 import {
   audienceAvatarRequestSchema,
   audiencePersonaRequestSchema,
@@ -401,7 +407,9 @@ export async function registerRoutes(
     if (!localGuard(req, res, "Channel intelligence")) return;
     try {
       const input = channelIntelligenceRequestSchema.parse(req.body);
-      return res.json({ intelligence: analyzeChannelIntelligence(input.niche, input.scriptTitles) });
+      const memory = input.channelId ? await channelMemory(input.channelId) : undefined;
+      const intelligence = await generateChannelIntelligence(input.niche, input.scriptTitles, { memory });
+      return res.json({ intelligence });
     } catch (error: any) {
       return res.status(400).json({ error: error?.message || "Unable to analyze channel." });
     }
@@ -464,7 +472,7 @@ export async function registerRoutes(
     if (!localGuard(req, res, "Audience personas")) return;
     try {
       const input = audiencePersonaRequestSchema.parse(req.body);
-      const persona = buildPersona(newPersonaId(), input.channelId, input.channelName, input.niche);
+      const persona = await generatePersona(newPersonaId(), input.channelId, input.channelName, input.niche);
       return res.status(201).json({ persona: await addPersona(persona) });
     } catch (error: any) {
       return res.status(400).json({ error: error?.message || "Unable to generate persona." });
@@ -485,7 +493,7 @@ export async function registerRoutes(
     if (!localGuard(req, res, "Audience avatar")) return;
     try {
       const input = audienceAvatarRequestSchema.parse(req.body);
-      return res.json({ avatar: buildAvatarMarkdown(input.channelName, input.niche) });
+      return res.json({ avatar: await generateAvatarMarkdown(input.channelName, input.niche) });
     } catch (error: any) {
       return res.status(400).json({ error: error?.message || "Unable to build avatar." });
     }
@@ -499,6 +507,19 @@ export async function registerRoutes(
       return res.json({ result: await humanizeText(input.text) });
     } catch (error: any) {
       return res.status(400).json({ error: error?.message || "Unable to humanize text." });
+    }
+  });
+
+  // L-807: unified evidence ledger across creator modules for the active channel.
+  // Every entry is synthesized (inferred); the aggregator rejects any that isn't.
+  app.get("/api/creator/ledger", async (req, res) => {
+    if (!localGuard(req, res, "Creator ledger")) return;
+    try {
+      const channelId = typeof req.query.channelId === "string" ? req.query.channelId : undefined;
+      const personas = await listPersonas(channelId);
+      return res.json({ entries: buildCreatorLedger({ personas }) });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to build creator ledger." });
     }
   });
 

@@ -159,6 +159,8 @@ export async function createProductionItem(
     channelId: input.channelId,
     title: input.title,
     stage: "idea" satisfies ProductionStage,
+    snapshotId: input.snapshotId,
+    dueDate: input.dueDate,
     createdAt: Date.now(),
   });
   const store = await readStore(root);
@@ -175,10 +177,21 @@ export async function moveProductionItem(
   const store = await readStore(root);
   const index = store.production.findIndex((p) => p.id === input.id);
   if (index < 0) throw Object.assign(new Error("Production item not found."), { status: 404 });
+  const current = store.production[index];
+  const snapshotId = input.snapshotId ?? current.snapshotId;
+  // L-803 gate: an item may only enter "published" if it cites a workflow
+  // snapshot. Publishing without evidence of the work it came from is rejected.
+  if (stage === "published" && !snapshotId) {
+    throw Object.assign(
+      new Error("Cite a workflow snapshot before marking an item published."),
+      { status: 400 },
+    );
+  }
   const next = productionItemSchema.parse({
-    ...store.production[index],
+    ...current,
     stage,
-    assignee: input.assignee ?? store.production[index].assignee,
+    assignee: input.assignee ?? current.assignee,
+    snapshotId,
   });
   const production = [...store.production];
   production[index] = next;

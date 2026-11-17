@@ -4,7 +4,13 @@ Status values: `todo` | `doing` | `done` | `blocked` | `cancelled`
 
 Update this file when work starts or finishes. See [ROADMAP.md](ROADMAP.md) for architecture.
 
-**Next version:** [v0.2 Cutroom](#phase-6--cutroom-v02) (`L-601+`). Version map: [docs/RELEASE_PLAN.md](docs/RELEASE_PLAN.md).
+**Next version:** [v2.1 Creator Suite GA](#phase-9--production-ga-v21) (`L-801+`, `L-901+`). Plan: [docs/PRODUCTION_PLAN.md](docs/PRODUCTION_PLAN.md). Version map: [docs/RELEASE_PLAN.md](docs/RELEASE_PLAN.md).
+
+> Phases 0–7 are the shipped evidence desk + v3 Board (all `done`). The **open
+> work** is Phase 8 (creator suite to production depth) and Phase 9 (production
+> GA blockers). Those are the only `todo` items below; see
+> [docs/PRODUCTION_PLAN.md](docs/PRODUCTION_PLAN.md) for goals, parallel tracks,
+> dependencies, and TDD test specs.
 
 ---
 
@@ -283,3 +289,71 @@ Cinematic watch file is stills → FFmpeg concat + shared voice (quote/confirm, 
 - Cloning third-party voices or likenesses from the research grid
 - Replacing Express with a Python agent sidecar
 - Long-form cinematic (10+ min Veo) in 3.1 — Shorts-first only
+
+---
+
+## Phase 8 — Creator suite to production depth
+
+Theme: the four CreatorForge modules folded into `main` (Channels, Audience,
+Operations, Humanize) ship today as **deterministic thin slices** (Humanize is
+already provider-routed). Phase 8 brings them to production depth —
+provider-grounded, workflow-connected, still evidence-labeled `inferred` with a
+deterministic fallback. Full goals, dependencies, and TDD specs:
+[docs/PRODUCTION_PLAN.md](docs/PRODUCTION_PLAN.md).
+
+Standing boundary: no creator finding is ever `observed` (there is no snapshot
+behind it); unlabeled claims are rejected by contract. Not ported, and still
+non-goals: CreatorForge's store, credits, Claude-only engine, fake publish API,
+collaboration, and third-party integrations.
+
+### Track CS — module depth (parallelizable by file-set)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| L-801 | done | Provider-grounded channel intelligence: `generateChannelIntelligence` with injectable provider, grounded in `channelMemory`; deterministic fallback; label code-controlled so a model can never emit `observed`/unlabeled (`server/creator-ai.ts`; wired at `/api/channels/intelligence`) |
+| L-802 | done | Provider-grounded audience personas: `generatePersona`/`generateAvatarMarkdown` with injectable provider; deterministic fallback; avatar keeps "synthesized, not measured" line (wired at `/api/personas`, `/api/audience/avatar`) |
+| L-803 | done | Operations wired to workflow: optional `snapshotId` + `dueDate` on `productionItem`; move to `published` gated on a cited snapshot (`shared/creator-modules.ts`, `server/creator-store.ts`) |
+| L-804 | done | Humanize evidence surfacing: `humanizeSummary` pure fn; renders `changes: -1` as "fully rewritten"; deterministic-fallback notice (`shared/creator-modules.ts`, `client/src/pages/humanize.tsx`) |
+| L-805 | done | Creator suite UX hardening: Channels / Audience / Operations carry empty + error + loading states; Humanize shows the provider/fallback notice; no route throws with zero channels (each page guards `!active`) |
+
+### Track INT — integration (after CS contracts frozen)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| L-806 | done | Channel → Research → Operations flow: `/api/channels/intelligence` grounds in `channelMemory` via optional `channelId`; a `productionItem` can be spawned with a `snapshotId` (L-803, tested); the Research search box prefills once from the active channel's niche when empty (`client/src/pages/research.tsx`) |
+| L-807 | done | Unified evidence ledger: `buildCreatorLedger` aggregates channel-intel + personas + avatar, every entry `inferred`, throws on any unlabeled entry; served at `/api/creator/ledger` and surfaced as an **Evidence ledger** panel on the Audience page (`server/creator-ledger.ts`, `client/src/pages/audience.tsx`; browser-verified) |
+| L-808 | done | Creator artifacts for export pack: `buildCreatorArtifacts` emits `creator/{channel-intelligence,persona}.json` + `creator/avatar.md`, each carrying `evidenceClass`; opt-in (empty input → no files); no new key (`server/creator-export.ts`). **Left:** wire into the live export route behind the Settings toggle |
+
+## Phase 9 — Production GA (v2.1)
+
+Theme: close the productionization blockers from
+[docs/PRODUCTIONIZATION.md](docs/PRODUCTIONIZATION.md) so the build is shippable
+to strangers. Release engineering runs **in parallel** with Phase 8; live
+acceptance and the history purge are env/owner-gated and cannot be simulated.
+
+### Track REL — release engineering (independent; parallel with Phase 8)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| L-901 | done | CI stop-the-line policy documented in `CONTRIBUTING.md` (+ admin branch-protection note). **Owner action:** enable branch protection on `main` in GitHub settings — a repo setting, not a code change |
+| L-902 | blocked | Updater end-to-end proof: the `latest.json` endpoint is covered by `server/updater-endpoint.test.ts`; the remaining real `v2.0.0 → v2.0.x` upgrade on a signed install needs a signed build + a prior install (env/release-gated). Closes PRODUCTIONIZATION P2 #9 when run |
+| L-904 | done | Rate-limit assumption guard: explicit single-user/loopback comment at `server/rate-limit.ts` + `warnIfNonLoopbackHost` wired at startup (`server/index.ts`); closes PRODUCTIONIZATION P1 #7 |
+| L-905 | done | Reproducible desktop build runbook (`npm ci` from a clean checkout) documented in `CONTRIBUTING.md`; closes PRODUCTIONIZATION P2 #10 |
+
+### Track ACC — live acceptance & trust (env/owner-gated; **do not simulate**)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| L-903 | blocked | Windows signing: Authenticode cert + Windows host/runner wired into `desktop-packages.yml`; stays open until a real signature exists (needs cert) |
+| L-906 | blocked | Live-provider acceptance pass on a clean Mac with a throwaway billable key (Gemini, YouTube 10k ceiling, keychain, OAuth Studio, **MiniMax Hailuo H3 quote-then-charge**). Does not close until a written MiniMax result exists (needs Mac + key) |
+| L-907 | blocked | Financial history purge: owner runs `filter-repo` + GitHub support purge from [docs/FINANCIAL_PURGE_REQUEST.md](docs/FINANCIAL_PURGE_REQUEST.md) + rotation (**owner only**) |
+
+### Non-goals for v2.1
+
+- Reintroducing any excluded CreatorForge surface (store, credits, Claude-only
+  engine, fake publish API, collaboration, integrations)
+- A second renderer (scene-motion-ai stays the renderer); the June local video
+  editor
+- Telemetry (diagnostics stay opt-in, local-only, one user-chosen file)
+- Any `observed` creator claim, or a claim with no evidence label
+- YouTube auto-upload (`videos.insert`)
