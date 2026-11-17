@@ -453,7 +453,7 @@ pushes `main`.
 | PS-103 | todo | OpenRouter + unified "Omnirouter" router as configurable `openai_compatible` base URL/key (pending `PS-003`) |
 | PS-104 | todo | Ollama local (no sign-in): verify multi-model; labeled offline/key-less |
 | PS-105 | blocked | Unified Connections Settings surface: per-provider key entry + validation + status; OAuth "Connect" only where a provider offers it (`PS-003`). Keys app-data/keychain, never WebView |
-| PS-106 | todo | Shared provider conformance test kit (text/image/video), fakes only |
+| PS-106 | done | Shared provider conformance kit (first pass): `server/ai/conformance.test.ts` locks the registry contract — every id in `AI_PROVIDER_IDS`/`AI_IMAGE_PROVIDER_IDS`/`AI_VIDEO_PROVIDER_IDS` resolves to a provider whose `id` matches, and resolvers round-trip/fall back safely (pure, no network). 311 tests green. **Left:** per-provider `completeJson` shape tests with mocked fetch (folds into `PS-601`) |
 
 ### Track MEDIA — image & video generator APIs (extends `server/ai/`)
 
