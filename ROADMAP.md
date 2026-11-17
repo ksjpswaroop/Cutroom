@@ -45,6 +45,7 @@ The WebView must load the Express origin so loopback Settings checks in `server/
 | **7** Production board v3 | One Board; shoot / slides+voice / cinematic; no upload ([docs/V3_ROADMAP.md](docs/V3_ROADMAP.md), `L-701+`) |
 | **8** Creator suite depth | Channels / Audience / Operations / Humanize (folded from CreatorForge) to production depth — provider-grounded, workflow-linked, evidence-labeled ([TRACKER.md](TRACKER.md) `L-801+`) |
 | **9** Production GA (v2.1) | Close productionization blockers: CI stop-the-line, updater proof, rate-limit guard, Windows signing, live-provider pass ([docs/PRODUCTION_PLAN.md](docs/PRODUCTION_PLAN.md), `L-901+`) |
+| **10** Go-to-market (v2.2) | Ship-to-strangers + sellable: release blockers, commercial model decision (Gate 0), samples generation, E2E + browser testing, licensing/Stripe (test-mode), distribution + legal ([docs/GTM_ROADMAP.md](docs/GTM_ROADMAP.md), `G-001+`) |
 
 **Current focus → v2.1 Creator Suite GA.** The implementation plan — organized
 goals, dependency-ordered **parallel tracks**, and **TDD test specs** — is
@@ -83,6 +84,7 @@ Strategy baseline (competitors, moat, Hermes decision, investor/user pitches): [
 | Version | Doc |
 | --- | --- |
 | **Production plan (current)** | [docs/PRODUCTION_PLAN.md](docs/PRODUCTION_PLAN.md) |
+| Go-to-market plan (v2.2) | [docs/GTM_ROADMAP.md](docs/GTM_ROADMAP.md) |
 | Readiness blockers | [docs/PRODUCTIONIZATION.md](docs/PRODUCTIONIZATION.md) |
 | Feature inventory | [docs/FEATURES.md](docs/FEATURES.md) |
 | v3 Board + render | [docs/V3_ROADMAP.md](docs/V3_ROADMAP.md) · [docs/V3_FEATURES.md](docs/V3_FEATURES.md) |
