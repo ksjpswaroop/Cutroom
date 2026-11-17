@@ -210,6 +210,25 @@ Tests now **295 pass / 0 fail** (+29 over baseline). Still open (code):
 `L-806` Research-page prefill, `L-901`/`L-902`/`L-905` release engineering. See
 [PRODUCTION_PLAN.md](PRODUCTION_PLAN.md).
 
+## Status — 2026-11-17 (L-808 export wiring)
+
+Closed the L-808 tail (TDD — tests written first), re-verified `npm run check`
+(exit 0), `npm test` (**299 pass / 0 fail**, +4), `npm run build` (exit 0),
+`npm audit --omit=dev` (**0 vulnerabilities**):
+
+- **L-808 — creator artifacts wired into the export pack.** `collectCreatorExport`
+  reads the `creatorExportEnabled` Settings toggle (default Off) and, when on,
+  gathers the active channel's inferred channel intelligence, persona, and avatar
+  and returns `buildCreatorArtifacts(...)`; served at `GET /api/creator/export`
+  (loopback-guarded) and pulled into the client export pack
+  (`client/src/lib/export-pack.ts`, Package + Video pages). Off or no channel →
+  `{}`, so the pack is unchanged by default. Gate covered by
+  `server/creator-export.test.ts`; browser-verified end-to-end. **Satisfies
+  done-when #5.** No new API key; every artifact stays `inferred`.
+
+Tests now **299 pass / 0 fail** (+33 over baseline). The only remaining open
+items are the env/owner-gated blockers below (`L-902`/`L-903`/`L-906`/`L-907`).
+
 ### Still open — named blockers, not simulated
 
 - **Live-provider acceptance pass — OPEN.** Not run. It requires a clean Mac and

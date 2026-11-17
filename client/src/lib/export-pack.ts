@@ -12,6 +12,8 @@ export interface ProjectPackInput {
   productionBoard?: unknown;
   previewDataUrl?: string;
   renderDataUrl?: string;
+  /** L-808: creator artifacts (path → contents under `creator/`), already gated server-side. */
+  creatorArtifacts?: Record<string, string>;
 }
 
 export interface ProjectPackResult {
@@ -97,6 +99,27 @@ export async function fetchWorkflowMediaDataUrl(
   return `data:video/mp4;base64,${btoa(binary)}`;
 }
 
+/**
+ * L-808: fetch the creator artifacts for the active channel. The server gates
+ * on the `creatorExportEnabled` Settings toggle and returns `{ files: {} }` when
+ * it is off, so a caller can always include the result; nothing is added unless
+ * the user turned creator export on. Returns `undefined` when there is no active
+ * channel or the request fails, leaving the export pack unchanged.
+ */
+export async function fetchCreatorArtifacts(
+  channelId: string | null | undefined,
+): Promise<Record<string, string> | undefined> {
+  if (!channelId) return undefined;
+  try {
+    const response = await fetch(`/api/creator/export?channelId=${encodeURIComponent(channelId)}`, { cache: "no-store" });
+    if (!response.ok) return undefined;
+    const body = await response.json() as { files?: Record<string, string> };
+    return body.files;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function exportProjectPack(input: ProjectPackInput): Promise<ProjectPackResult> {
   const stamp = new Date().toISOString().slice(0, 10);
   const topic = stripLeakedUndefined(input.topic) || "cutroom-project";
@@ -137,6 +160,11 @@ export async function exportProjectPack(input: ProjectPackInput): Promise<Projec
     });
   }
   files.push(...briefFilesFromBoard(base, input.productionBoard));
+  if (input.creatorArtifacts) {
+    for (const [name, content] of Object.entries(input.creatorArtifacts)) {
+      files.push({ filename: `${base}/${name}`, content });
+    }
+  }
   if (input.thumbnailDataUrl?.startsWith("data:")) {
     const match = input.thumbnailDataUrl.match(/^data:([^;]+);base64,(.+)$/);
     if (match) {

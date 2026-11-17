@@ -84,6 +84,7 @@ import {
   humanizeText,
 } from "./creator-ai";
 import { buildCreatorLedger } from "./creator-ledger";
+import { collectCreatorExport } from "./creator-export";
 import {
   audienceAvatarRequestSchema,
   audiencePersonaRequestSchema,
@@ -520,6 +521,19 @@ export async function registerRoutes(
       return res.json({ entries: buildCreatorLedger({ personas }) });
     } catch (error: any) {
       return res.status(500).json({ error: error?.message || "Unable to build creator ledger." });
+    }
+  });
+
+  // L-808: creator artifacts for the project export pack, gated by the
+  // `creatorExportEnabled` Settings toggle. Returns `{ files: {} }` when the
+  // toggle is off or no channel is in context, so the pack is unchanged by default.
+  app.get("/api/creator/export", async (req, res) => {
+    if (!localGuard(req, res, "Creator export")) return;
+    try {
+      const channelId = typeof req.query.channelId === "string" ? req.query.channelId : undefined;
+      return res.json({ files: await collectCreatorExport(channelId) });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to build creator export." });
     }
   });
 

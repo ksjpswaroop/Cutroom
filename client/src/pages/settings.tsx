@@ -43,6 +43,7 @@ interface ApiKeyStatus {
     storyboardStillsEnabled?: boolean;
     vimaxCompanionEnabled?: boolean;
     hermesCompanionEnabled?: boolean;
+    creatorExportEnabled?: boolean;
   };
   assemblePreview?: {
     assemblePreviewEnabled: boolean;
@@ -411,7 +412,7 @@ export default function SettingsPage() {
   };
 
   const handleTogglePreference = async (
-    key: "assemblePreviewEnabled" | "storyboardStillsEnabled" | "vimaxCompanionEnabled" | "hermesCompanionEnabled",
+    key: "assemblePreviewEnabled" | "storyboardStillsEnabled" | "vimaxCompanionEnabled" | "hermesCompanionEnabled" | "creatorExportEnabled",
     enabled: boolean,
   ) => {
     setIsSavingPreferences(true);
@@ -439,6 +440,9 @@ export default function SettingsPage() {
         hermesCompanionEnabled: enabled
           ? "Hermes digest enabled (still does not spawn Hermes)"
           : "Hermes companion remains Off",
+        creatorExportEnabled: enabled
+          ? "Creator artifacts will be added to the export pack"
+          : "Creator artifacts stay out of the export pack",
       };
       toast({
         title: labels[key],
@@ -448,7 +452,9 @@ export default function SettingsPage() {
             : "Assemble engine stays hidden unless you turn it on.")
           : key === "storyboardStillsEnabled"
             ? "Stills are inferred when generated. Default Off."
-            : "Cutroom never launches ViMax. Settings never store VIMAX_* sidecar keys.",
+            : key === "creatorExportEnabled"
+              ? "Creator artifacts are inferred-only and added under creator/ in the export pack. Default Off."
+              : "Cutroom never launches ViMax. Settings never store VIMAX_* sidecar keys.",
       });
     } catch (error: any) {
       toast({
@@ -788,6 +794,24 @@ export default function SettingsPage() {
               data-testid="button-toggle-hermes-companion"
             >
               {status.preferences?.hermesCompanionEnabled ? "On" : "Off"}
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/50 p-4">
+            <div>
+              <p className="text-sm font-medium">Creator artifacts in export pack</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Add the active channel's intelligence, persona, and avatar under creator/ in the project
+                export. Default Off. Always labeled inferred — never observed.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant={status.preferences?.creatorExportEnabled ? "default" : "outline"}
+              disabled={isSavingPreferences || Boolean(loadError)}
+              onClick={() => void handleTogglePreference("creatorExportEnabled", !status.preferences?.creatorExportEnabled)}
+              data-testid="button-toggle-creator-export"
+            >
+              {status.preferences?.creatorExportEnabled ? "On" : "Off"}
             </Button>
           </div>
         </CardContent>

@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { useWorkflow } from "@/lib/workflow-context";
 import { apiRequest } from "@/lib/queryClient";
-import { exportProjectPack, fetchWorkflowMediaDataUrl } from "@/lib/export-pack";
+import { exportProjectPack, fetchCreatorArtifacts, fetchWorkflowMediaDataUrl } from "@/lib/export-pack";
 import { stripLeakedUndefined } from "@shared/workflow-history";
 import type { ProductionBoardOutput } from "@shared/board-contracts";
 import type { CinematicQuote } from "@shared/render-contracts";
@@ -244,6 +244,7 @@ export default function VideoPage() {
         productionBoard: board,
         previewDataUrl,
         renderDataUrl,
+        creatorArtifacts: await fetchCreatorArtifacts(localStorage.getItem("cutroom.activeChannelId")),
       });
       toast({
         title: "Project pack exported",
