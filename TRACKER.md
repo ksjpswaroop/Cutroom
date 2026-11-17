@@ -436,6 +436,31 @@ gated (`PS-001`); live sign-off needs owner-only resources (billable keys, cert,
 signed install); the agent never auto-publishes, enters credentials, deploys, or
 pushes `main`.
 
+### Status — 2026-11-17 (pass 1)
+
+Delivered under TDD (all three HANDOFF commands green: `npm run check` 0 ·
+`npm test` **314 pass / 0 fail** · `npm run build` 0 · `npm audit --omit=dev` 0),
+open for review in **PR #5** (`docs/production-signoff-tracker`):
+
+- **`PS-101` done** — Anthropic (Claude) text provider (`server/ai/anthropic-adapter.ts`), registry-wired, mocked-fetch test.
+- **`PS-201` done** — `AiVideoProvider` abstraction with pure `quote()` before the charging `generateClip()` (quote-then-charge) + MiniMax adapter.
+- **`PS-106` done** (first pass) — provider registry conformance kit.
+- **`PS-105` doing** — Claude connection end-to-end via Settings (key entry + model + dropdown), server test + browser-verified.
+- Also fixed the `npm test` glob (was skipping `server/ai/*.test.ts`).
+
+**Blocked on owner decisions** (the gates below): `PS-102`/`PS-103`/`PS-105`
+tail (Codex / Cursor / Omnirouter / OAuth) on `PS-003`; Track RENDER length on
+`PS-002`; Track PUBLISH on `PS-001`. **Blocked on owner resources** (billable
+key / cert / signed install / deploy), recorded not simulated: `PS-304`/`L-906`,
+`L-903`, `L-902`, `L-907`, `PS-506`.
+
+**Next buildable (no gate):** `PS-204` (Gemini-for-rendering), `PS-601` (full
+per-provider `completeJson` conformance), `PS-202` (more video adapters, once a
+second provider's API is chosen). Everything else waits on the gates.
+
+> The originating `/goal` was cleared on 2026-11-17 after the completable work
+> landed in PR #5; the remaining items are genuinely owner-gated, not dropped.
+
 ### Decision gates (owner)
 
 | ID | Status | Item |

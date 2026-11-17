@@ -77,6 +77,19 @@ a unified **Connections** surface (keys + optional OAuth); wire **Gemini renderi
 into the cinematic path; the **publish** track (gated); and the **sign-off** + **QA**
 tracks. Most of the connect layer is extension, not greenfield.
 
+### Delivered so far (pass 1 — PR #5, `docs/production-signoff-tracker`)
+
+All under TDD; `npm run check` 0 · `npm test` **314 pass / 0 fail** · `npm run build` 0:
+
+- **`PS-101`** — Anthropic (Claude) text provider (`server/ai/anthropic-adapter.ts`), registry-wired, mocked-fetch test; `npm test` glob widened to collect `server/ai/*.test.ts`.
+- **`PS-201`** — `AiVideoProvider` abstraction (pure `quote()` → charging `generateClip()`, quote-then-charge) + MiniMax adapter (`minimax-video-adapter.ts`).
+- **`PS-106`** — provider registry conformance kit (`server/ai/conformance.test.ts`), first pass.
+- **`PS-105` (partial)** — Claude connection end-to-end via Settings (`ANTHROPIC_API_KEY`/model through `settings.ts` + `keychain.ts` + the Settings UI), server test + browser-verified.
+
+Remaining PROV/MEDIA/RENDER/PUBLISH work and all live sign-off is **gated** on the
+§1 owner decisions and owner-only resources — see [../TRACKER.md](../TRACKER.md)
+Phase 11 "Status" for the live breakdown.
+
 ---
 
 ## 3. Goal statements (Phase 11 — `PS-001+`)
