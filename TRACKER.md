@@ -322,7 +322,7 @@ collaboration, and third-party integrations.
 | --- | --- | --- |
 | L-806 | done | Channel → Research → Operations flow: `/api/channels/intelligence` grounds in `channelMemory` via optional `channelId`; a `productionItem` can be spawned with a `snapshotId` (L-803, tested); the Research search box prefills once from the active channel's niche when empty (`client/src/pages/research.tsx`) |
 | L-807 | done | Unified evidence ledger: `buildCreatorLedger` aggregates channel-intel + personas + avatar, every entry `inferred`, throws on any unlabeled entry; served at `/api/creator/ledger` and surfaced as an **Evidence ledger** panel on the Audience page (`server/creator-ledger.ts`, `client/src/pages/audience.tsx`; browser-verified) |
-| L-808 | done | Creator artifacts for export pack: `buildCreatorArtifacts` emits `creator/{channel-intelligence,persona}.json` + `creator/avatar.md`, each carrying `evidenceClass`; opt-in (empty input → no files); no new key (`server/creator-export.ts`). **Left:** wire into the live export route behind the Settings toggle |
+| L-808 | done | Creator artifacts for export pack: `buildCreatorArtifacts` emits `creator/{channel-intelligence,persona}.json` + `creator/avatar.md`, each carrying `evidenceClass`; opt-in (empty input → no files); no new key (`server/creator-export.ts`). **Wired:** `collectCreatorExport` gathers the active channel's inferred intel/persona/avatar behind the `creatorExportEnabled` Settings toggle (default Off), served at `GET /api/creator/export` and pulled into the client export pack (`client/src/lib/export-pack.ts`, Package + Video pages); `server/creator-export.test.ts` covers the gate; browser-verified |
 
 ## Phase 9 — Production GA (v2.1)
 

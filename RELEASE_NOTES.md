@@ -27,8 +27,12 @@ depth, and closes the code-side productionization gaps.
   clear notice when the local deterministic fallback ran.
 - **Research prefill.** The search box seeds from the active channel's niche
   (once, only when empty).
-- **Opt-in creator export artifacts** and an **opt-in, local-only, redacted
-  diagnostics export** (no telemetry).
+- **Creator artifacts in the export pack.** Channel intelligence, the audience
+  persona, and the avatar are added under `creator/` in the project export when
+  the new **Creator artifacts in export pack** Settings toggle is on (default
+  Off). Each file is labeled **inferred**; nothing is exported until you turn it
+  on. Served by `GET /api/creator/export` and assembled by the client pack.
+- **Opt-in, local-only, redacted diagnostics export** (no telemetry).
 - **Trust/robustness:** `zod` 4 migration (high-severity advisory cleared);
   `engines: node >=20.19`; CI Actions off deprecated Node 20; rate-limiter
   single-user assumption guarded with a non-loopback `HOST` warning.
@@ -36,7 +40,7 @@ depth, and closes the code-side productionization gaps.
 ### Verification
 
 - `npm run check`: passed
-- `npm test`: 295 passed / 0 failed
+- `npm test`: 299 passed / 0 failed
 - `npm run build`: passed
 - `npm audit --omit=dev`: 0 vulnerabilities
 

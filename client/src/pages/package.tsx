@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useWorkflow } from "@/lib/workflow-context";
-import { exportProjectPack, fetchWorkflowMediaDataUrl } from "@/lib/export-pack";
+import { exportProjectPack, fetchCreatorArtifacts, fetchWorkflowMediaDataUrl } from "@/lib/export-pack";
 import { stripLeakedUndefined } from "@shared/workflow-history";
 
 interface PublishPackage {
@@ -207,6 +207,7 @@ export default function PackagePage() {
         productionBoard: state.cachedBoard?.board,
         previewDataUrl: await fetchWorkflowMediaDataUrl(state.id, "preview"),
         renderDataUrl: await fetchWorkflowMediaDataUrl(state.id, "render"),
+        creatorArtifacts: await fetchCreatorArtifacts(localStorage.getItem("cutroom.activeChannelId")),
       });
       toast({
         title: result.mode === "desktop" ? "Exported to folder" : "Project pack downloaded",

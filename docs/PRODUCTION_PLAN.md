@@ -40,7 +40,7 @@ Measured after the first production-depth pass (Track CS core + L-904):
 | Signal | State |
 | --- | --- |
 | `npm run check` | exit 0 |
-| `npm test` | **295 pass / 0 fail** (266 baseline + 29 new) |
+| `npm test` | **299 pass / 0 fail** (266 baseline + 33 new) |
 | `npm run build` | exit 0 |
 | `npm audit --omit=dev` | 0 vulnerabilities |
 | Creator suite | Channel intel + personas **provider-grounded** (injectable, deterministic fallback, label code-controlled); Operations gated on a cited snapshot; Humanize surfaces provider/fallback; unified evidence ledger served |
@@ -56,6 +56,12 @@ is configured. Operations items now carry a `snapshotId`/`dueDate` and cannot
 enter `published` without citing a workflow snapshot. The remaining Track CS/INT
 work is UI surfacing and cross-module flow; the env/owner-gated items stay
 honestly blocked.
+
+**L-808 is now fully delivered** (done-when #5 met): `collectCreatorExport`
+gathers the active channel's inferred channel intelligence, persona, and avatar
+behind the `creatorExportEnabled` Settings toggle (default Off), served at
+`GET /api/creator/export` and pulled into the client export pack. The toggle
+defaults Off, so the pack is unchanged unless the user turns creator export on.
 
 ---
 
