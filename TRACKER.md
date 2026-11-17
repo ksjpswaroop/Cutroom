@@ -452,7 +452,7 @@ pushes `main`.
 | PS-102 | todo | OpenAI / Codex via `openai_compatible` (base URL + key + model presets); new adapter only if `PS-003` requires |
 | PS-103 | todo | OpenRouter + unified "Omnirouter" router as configurable `openai_compatible` base URL/key (pending `PS-003`) |
 | PS-104 | todo | Ollama local (no sign-in): verify multi-model; labeled offline/key-less |
-| PS-105 | blocked | Unified Connections Settings surface: per-provider key entry + validation + status; OAuth "Connect" only where a provider offers it (`PS-003`). Keys app-data/keychain, never WebView |
+| PS-105 | doing | Unified Connections Settings surface. **Done:** Anthropic (Claude) connection end-to-end — `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL` wired through `server/settings.ts` + `keychain.ts` (status flag, update schema, persist/keychain, process.env), provider dropdown + key field + model input in `client/src/pages/settings.tsx`; `server/settings-anthropic.test.ts` (3 tests) + browser-verified. Keys stay app-data/keychain, never WebView. **Blocked on `PS-003`:** Codex/Cursor/Omnirouter semantics and any OAuth "Connect" flow (Anthropic/OpenAI/OpenRouter are key-based) |
 | PS-106 | done | Shared provider conformance kit (first pass): `server/ai/conformance.test.ts` locks the registry contract — every id in `AI_PROVIDER_IDS`/`AI_IMAGE_PROVIDER_IDS`/`AI_VIDEO_PROVIDER_IDS` resolves to a provider whose `id` matches, and resolvers round-trip/fall back safely (pure, no network). 311 tests green. **Left:** per-provider `completeJson` shape tests with mocked fetch (folds into `PS-601`) |
 
 ### Track MEDIA — image & video generator APIs (extends `server/ai/`)
