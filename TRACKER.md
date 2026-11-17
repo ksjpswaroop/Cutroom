@@ -459,7 +459,7 @@ pushes `main`.
 
 | ID | Status | Item |
 | --- | --- | --- |
-| PS-201 | todo | `AiVideoProvider` abstraction + `AI_VIDEO_PROVIDER_IDS`, mirroring `AiImageProvider`; wrap `minimax-h3.ts`; quote-then-charge in the type. TDD first |
+| PS-201 | done | `AiVideoProvider` abstraction + `AI_VIDEO_PROVIDER_IDS` in `server/ai/types.ts` (pure `quote()` before the charging `generateClip()` — quote-then-charge); `minimax-video-adapter.ts` wraps `minimax-h3.ts` (shot cap 5, fails closed, injectable fetch); registry `resolveAiVideoProviderId`/`getVideoProvider` in `index.ts`. TDD: `server/ai/video-provider.test.ts` (4 tests, injected fetch + mkdtemp, no live call). 307 tests green |
 | PS-202 | todo | Veo-class + additional video adapters behind the abstraction; injectable; deterministic stub in tests |
 | PS-203 | todo | Image generator breadth: confirm gemini/ollama/minimax; optional OpenAI-images under `openai_compatible` |
 | PS-204 | todo | Gemini-for-rendering: wire `gemini-image-adapter` into stills/cards + cinematic storyboard stills (respect `storyboardStillsEnabled` Off) |
