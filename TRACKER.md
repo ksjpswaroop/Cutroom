@@ -5,6 +5,7 @@ Status values: `todo` | `doing` | `done` | `blocked` | `cancelled`
 Update this file when work starts or finishes. See [ROADMAP.md](ROADMAP.md) for architecture.
 
 **Next version:** [v2.1 Creator Suite GA](#phase-9--production-ga-v21) (`L-801+`, `L-901+`). Plan: [docs/PRODUCTION_PLAN.md](docs/PRODUCTION_PLAN.md). Version map: [docs/RELEASE_PLAN.md](docs/RELEASE_PLAN.md).
+**After GA:** [v2.2 Go-to-market](#phase-10--go-to-market-v22-market-readiness) (`G-001+`) — release blockers, commercial model (Gate 0), samples + testing. Plan: [docs/GTM_ROADMAP.md](docs/GTM_ROADMAP.md).
 
 > Phases 0–7 are the shipped evidence desk + v3 Board (all `done`). The **open
 > work** is Phase 8 (creator suite to production depth) and Phase 9 (production
@@ -357,3 +358,63 @@ acceptance and the history purge are env/owner-gated and cannot be simulated.
 - Telemetry (diagnostics stay opt-in, local-only, one user-chosen file)
 - Any `observed` creator claim, or a claim with no evidence label
 - YouTube auto-upload (`videos.insert`)
+
+## Phase 10 — Go-to-market (v2.2 "Market readiness")
+
+Theme: take the code-GA build to *shippable to strangers and sellable*. Full
+goals, dependency graph, parallel waves, and TDD specs:
+[docs/GTM_ROADMAP.md](docs/GTM_ROADMAP.md).
+
+Gate 0 (`G-001`) is an **owner decision** that bifurcates the commercial tracks;
+nothing in Track COMM starts before it. The samples + testing tracks are
+buildable now and model-independent. The `L-9xx` release blockers are the
+distribution gate (owner/env-gated; **not simulated**). Standing exclusion:
+fake-publish and the retired store/credits stay out regardless of the model.
+
+### Gate 0 — commercial model (owner decision)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| G-001 | todo | Decide the commercial model: **A** free/OSS · **B** licensed desktop (signed license key, BYO provider keys, Stripe checkout — *recommended default*) · **C** hosted/managed keys (metered billing; breaks local-first, needs auth design). Record in [docs/STRATEGY.md](docs/STRATEGY.md). Gates Track COMM |
+
+### Track SMPL — samples generation (buildable now; model-independent)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| G-101 | todo | Deterministic sample dataset generator (`npm run samples:generate`): byte-stable channel + personas + research snapshot + script + package + board + full export pack incl. `creator/*`; deterministic fallbacks only (no live keys); goldens under `test/fixtures/samples/` |
+| G-102 | todo | "Load sample project" onboarding: first-run seeds the demo workflow; artifacts labeled sample/`inferred`; Settings toggles stay Off |
+| G-103 | todo | Marketing/demo sample set: curated export pack + screenshots for landing, `USER_GUIDE.md`, `launch-video/`; no new key |
+
+### Track QA — testing (buildable now)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| G-201 | todo | Headless E2E acceptance harness: deterministic Research→…→Package→Export, asserting a valid pack and preserved snapshot/evidence labels; no live keys |
+| G-202 | todo | Browser-smoke coverage over Settings toggles + export (closes the PR risk-taxonomy "UI without browser coverage" signal); tooling (Playwright/preview) is a dev call |
+| G-203 | todo | Sample-driven regression: wire `G-101` goldens into `npm test` so contract drift fails a golden compare |
+| G-204 | blocked | Live-provider acceptance pass — **same item as `L-906`** (clean Mac + throwaway billable key; incl. MiniMax quote-then-charge). Recorded, never simulated |
+| G-205 | todo | Reference-set / analyzer fixtures (also answers the ECC "reference set readiness" audit); low priority |
+
+### Track COMM — commercialization (gated on `G-001` = B or C; **test-mode only**)
+
+| ID | Status | Item |
+| --- | --- | --- |
+| G-301 | blocked | Entitlement/licensing: public-key-signed license key — issuance, offline verify (signature + expiry + tamper reject), pro-feature gate; no account server for Model B. Gated on `G-001` |
+| G-302 | blocked | Stripe integration (**test-mode first**): Checkout → webhook → license issuance; built/tested with Stripe test keys + published test cards only; **owner flips live keys / performs any real payment**. Gated on `G-001` |
+| G-303 | todo | Pricing & packaging (owner): tiers, free-vs-paid boundary, trial; record in [docs/STRATEGY.md](docs/STRATEGY.md) |
+| G-304 | blocked | Managed-key proxy — only if `G-001` = C; hosted proxy + metered billing + the auth/security design the standing boundary requires. Likely deferred to 3.x |
+
+### Track DIST — distribution & legal
+
+| ID | Status | Item |
+| --- | --- | --- |
+| G-401 | blocked | Download channel + landing: signed macOS DMG + signed Windows (needs `L-903`) on a real download surface with the updater proven (`L-902`); landing states the local-first/evidence posture |
+| G-402 | blocked | Legal pack (**owner/legal**): ToS, Privacy Policy, EULA, refund policy; YouTube Data API ToS review for distribution |
+| G-403 | todo | Support path: document the shipped opt-in diagnostics bundle as the support channel; define a contact/intake flow |
+
+### Non-goals for v2.2
+
+- Fake-publish, the retired CreatorForge store/credits, or any `observed` creator claim
+- A hosted/non-loopback surface **without** an explicit auth + security design (gated behind `G-001` = C only)
+- The agent entering payment credentials, running a live transaction, flipping Stripe to live, or publishing to production (all **owner actions**)
+- Telemetry (diagnostics stay opt-in, local-only, one user-chosen file)

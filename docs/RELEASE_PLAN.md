@@ -14,6 +14,7 @@
 | **1.4** | Research depth | Competitor/series workspace (L-311); calendar/batch (L-312); Shorts/clip briefs (L-313) |
 | **2.0** | Optional Studio mirror | OAuth read-only Studio metrics clearly separated from public snapshot (L-314); updater live; optional cloud sync decision |
 | **2.1** | **Creator Suite GA (current)** | Channels / Audience / Operations / Humanize to production depth (provider-grounded, workflow-linked, evidence-labeled); productionization blockers closed — CI stop-the-line, updater proof, rate-limit guard; Windows signing + live-provider pass tracked env/owner-gated ([PRODUCTION_PLAN.md](PRODUCTION_PLAN.md), `L-801+`/`L-901+`) |
+| **2.2** | Go-to-market / Market readiness | Ship-to-strangers + sellable: release blockers real (updater/Windows signing/live-provider/history purge), commercial-model decision (Gate 0), deterministic samples + E2E/browser testing, licensing/Stripe (test-mode first), download channel + legal pack ([GTM_ROADMAP.md](GTM_ROADMAP.md), `G-001+`). Monetization/accounts are a **positioning change** from the 1.x "no mandatory accounts" non-goal — decided at Gate 0 |
 | **3.0** | Board + chosen render | Evidence-grounded Board; mode picker; **shoot myself** + **slides+voice** `render.mp4`; no YouTube upload ([V3_ROADMAP.md](V3_ROADMAP.md), `L-701+`) |
 | **3.1** | Cinematic Shorts | TS Script2Video stages (stills → Veo-class clips → concat); quote-before-run; optional ViMax-shaped export flag Off |
 
@@ -35,6 +36,15 @@ env/owner-gated and tracked separately before "ship to strangers".
 
 > Historical note: phases 0–7 (the evidence desk through v3 Board) are shipped
 > and `done`. v0.2 and the 1.x/2.0/3.x themes below remain the architectural map.
+
+## After GA → **2.2 (Go-to-market)**
+
+Once the code GA (2.1) lands, [GTM_ROADMAP.md](GTM_ROADMAP.md) (TRACKER Phase 10,
+`G-001+`) takes over: the owner-gated release blockers (`L-902`/`L-903`/`L-906`/`L-907`)
+become the distribution gate, Gate 0 (`G-001`) settles the commercial model, and the
+samples (`G-101+`) and testing (`G-201+`) tracks are buildable immediately. The
+agent builds licensing/Stripe in **test mode only**; live keys and real payments are
+owner actions.
 
 ## Non-goals through 1.x
 
