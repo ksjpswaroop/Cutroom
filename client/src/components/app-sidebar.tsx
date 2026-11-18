@@ -38,7 +38,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, FileText, Settings, Rocket, Check, ArrowRight, Image, History, Loader2, MoreHorizontal, Pencil, Trash2, Package, Clapperboard, CalendarDays, LayoutGrid, Tv, Users, KanbanSquare, Wand2, Film } from "lucide-react";
+import { Search, FileText, Settings, Rocket, Check, ArrowRight, Image, History, Loader2, MoreHorizontal, Pencil, Trash2, Package, Clapperboard, CalendarDays, LayoutGrid, Tv, Users, KanbanSquare, Wand2, Film, Bot } from "lucide-react";
 import { useWorkflow } from "@/lib/workflow-context";
 import { createProClientRegistry, useProEnabled } from "@/lib/pro-commands";
 import { useQueryClient } from "@tanstack/react-query";
@@ -347,6 +347,37 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
+              {/* Cutroom Pro M2 — Agents view. Shown always; when Pro is off
+                  it carries a Pro badge and opens the Agents page, which
+                  explains how to turn it on. */}
+              <SidebarMenuItem key="Agents">
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/agents"}
+                  className={location === "/agents" ? "bg-sidebar-accent" : ""}
+                >
+                  <Link href="/agents" aria-current={location === "/agents" ? "page" : undefined} data-testid="link-agents">
+                    <div className="flex flex-1 items-center gap-2.5">
+                      <span
+                        className={cn(
+                          "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                          "bg-violet-500/15 text-violet-600 dark:bg-violet-400/20 dark:text-violet-400",
+                          location === "/agents" && "ring-1 ring-current/25",
+                        )}
+                        aria-hidden="true"
+                      >
+                        <Bot className="size-4" />
+                      </span>
+                      <span>Agents</span>
+                      {!proEnabled && (
+                        <span className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Pro
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               {/* Cutroom Pro M0 — Edit tab (FilmCraft). Shown always; when Pro
                   is off it carries a Pro badge and opens the Edit page, which
                   explains how to turn it on. Opening goes through the Pro

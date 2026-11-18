@@ -18,6 +18,7 @@ import ThumbnailPage from "@/pages/thumbnail";
 import PackagePage from "@/pages/package";
 import BoardPage from "@/pages/board";
 import EditPage from "@/pages/edit";
+import AgentsPage from "@/pages/agents";
 import VideoPage from "@/pages/video";
 import CalendarPage from "@/pages/calendar";
 import ChannelsPage from "@/pages/channels";
@@ -39,6 +40,7 @@ function Router() {
       <Route path="/package" component={PackagePage} />
       <Route path="/board" component={BoardPage} />
       <Route path="/edit" component={EditPage} />
+      <Route path="/agents" component={AgentsPage} />
       <Route path="/video" component={VideoPage} />
       <Route path="/calendar" component={CalendarPage} />
       <Route path="/channels" component={ChannelsPage} />

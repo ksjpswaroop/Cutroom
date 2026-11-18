@@ -18,6 +18,8 @@ export const preferencesSchema = z.object({
   creatorExportEnabled: z.boolean().default(false),
   /** Cutroom Pro tier (M0). Default Off. Enables the Edit tab (FilmCraft) and OTIO export. No payment, account, or cloud. */
   cutroomProEnabled: z.boolean().default(false),
+  /** Cutroom Pro M2 — agent spend cap in USD. Default $0: no paid call runs unless the creator raises it. */
+  agentSpendCapUsd: z.number().min(0).max(10_000).default(0),
 }).strict();
 
 export type AppPreferences = z.infer<typeof preferencesSchema>;
@@ -29,6 +31,7 @@ export const preferencesUpdateSchema = z.object({
   hermesCompanionEnabled: z.boolean().optional(),
   creatorExportEnabled: z.boolean().optional(),
   cutroomProEnabled: z.boolean().optional(),
+  agentSpendCapUsd: z.number().min(0).max(10_000).optional(),
 }).strict();
 
 const DEFAULTS: AppPreferences = {
@@ -38,6 +41,7 @@ const DEFAULTS: AppPreferences = {
   hermesCompanionEnabled: false,
   creatorExportEnabled: false,
   cutroomProEnabled: false,
+  agentSpendCapUsd: 0,
 };
 
 function preferencesPath(root = getEnvFilePaths().root): string {

@@ -47,6 +47,7 @@ interface ApiKeyStatus {
     hermesCompanionEnabled?: boolean;
     creatorExportEnabled?: boolean;
     cutroomProEnabled?: boolean;
+    agentSpendCapUsd?: number;
   };
   assemblePreview?: {
     assemblePreviewEnabled: boolean;
@@ -217,6 +218,7 @@ export default function SettingsPage() {
   const anthropicKeyRef = useRef<HTMLInputElement>(null);
   const minimaxKeyRef = useRef<HTMLInputElement>(null);
   const elevenLabsKeyRef = useRef<HTMLInputElement>(null);
+  const spendCapRef = useRef<HTMLInputElement>(null);
   const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState("");
   const [voiceConsent, setVoiceConsent] = useState(false);
   const [cinematicVeoEnabled, setCinematicVeoEnabled] = useState(false);
@@ -481,6 +483,31 @@ export default function SettingsPage() {
   // Cutroom Pro M0 — the toggle goes through the client Pro command
   // registry (pro.set-enabled), which validates it and writes an audit entry.
   const proRegistry = useMemo(() => createProClientRegistry(() => {}), []);
+  const handleSaveSpendCap = async () => {
+    const raw = spendCapRef.current?.value ?? "";
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0 || value > 10_000) {
+      toast({ title: "Invalid spend cap", description: "Enter a number from 0 to 10,000 (USD per agent run).", variant: "destructive" });
+      return;
+    }
+    setIsSavingPreferences(true);
+    try {
+      const response = (await apiRequest("PUT", "/api/settings/preferences", { agentSpendCapUsd: value })) as {
+        success: boolean;
+        preferences: ApiKeyStatus["preferences"];
+      };
+      setStatus((current) => ({ ...current, preferences: response.preferences }));
+      toast({
+        title: value === 0 ? "Spend cap is $0 — no paid calls" : `Agent spend cap set to $${value}`,
+        description: "The Orchestrator pauses as needs-human before any step that would exceed it.",
+      });
+    } catch (error: any) {
+      toast({ title: "Could not update the spend cap", description: error?.message || "Try again.", variant: "destructive" });
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  };
+
   const handleTogglePro = async (enabled: boolean) => {
     setIsSavingPreferences(true);
     try {
@@ -896,6 +923,39 @@ export default function SettingsPage() {
             &ldquo;Cutroom Pro&rdquo; name is not yet trademark-cleared; treat
             it as a tier name, not a new product, until clearance is done.
           </p>
+          {/* Cutroom Pro M2 — agent spend cap. Default $0: no paid call runs
+              unless the creator raises it here. The Orchestrator pauses as
+              needs-human before any step that would exceed the cap. */}
+          <div className="flex flex-wrap items-end justify-between gap-3 rounded-lg border border-border bg-background/50 p-4">
+            <div className="min-w-48 flex-1">
+              <Label htmlFor="input-agent-spend-cap">Agent spend cap (USD per run)</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Default $0 — no paid call runs. Live agent steps use the provider
+                set above; the cap pauses the run before it would be exceeded.
+              </p>
+              <Input
+                id="input-agent-spend-cap"
+                ref={spendCapRef}
+                type="number"
+                min={0}
+                max={10000}
+                step={0.5}
+                defaultValue={status.preferences?.agentSpendCapUsd ?? 0}
+                key={status.preferences?.agentSpendCapUsd ?? 0}
+                className="mt-2 w-40"
+                data-testid="input-agent-spend-cap"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSavingPreferences || Boolean(loadError)}
+              onClick={() => void handleSaveSpendCap()}
+              data-testid="button-save-agent-spend-cap"
+            >
+              Save cap
+            </Button>
+          </div>
         </CardContent>
       </Card>
         </TabsContent>

@@ -3,6 +3,16 @@ import { createCommandRegistry, type CommandRegistry } from "@shared/commands";
 import { productionBoardOutputSchema } from "@shared/board-contracts";
 import { buildOtioTimeline } from "@shared/otio";
 import { assemblerStepSchema } from "@shared/assembler";
+import { qaReportSchema } from "@shared/qa";
+import {
+  agentClaimSchema,
+  agentPlanInputSchema,
+  costEntrySchema,
+  packagingOutputSchema,
+  scriptOutputSchema,
+  type AgentClaim,
+} from "@shared/agents";
+import { qaInputSchema } from "@shared/qa";
 import { readPreferences, writePreferences, type AppPreferences } from "./preferences";
 
 /**
@@ -154,19 +164,138 @@ export function createProRegistry(): CommandRegistry {
         loudnessTargetLufs: z.number().min(-70).max(0).optional(),
       }).strict().optional(),
       transport: z.enum(["auto", "dry-run"]).optional(),
+      /** QA report from the M2 agent run — a Fail blocks the run (409 at the route). */
+      qaReport: qaReportSchema.optional(),
     }).strict(),
     enabled: assemblerEnabled,
-    handler: async ({ board, options, transport }) => {
+    handler: async ({ board, options, transport, qaReport }) => {
       const { runAssembly } = await import("./assembler");
       const { DryRunTransport } = await import("./assembler-transport");
       const receipt = await runAssembly(
-        { board, options, transport },
+        { board, options, transport, qaReport },
         {
           transportOverride: transport === "dry-run" ? new DryRunTransport() : undefined,
           proEnabled: true,
         },
       );
       return receipt;
+    },
+  });
+
+  /**
+   * Cutroom Pro M2 — Agent team commands. Every agent step goes through
+   * here (Pro-gated, validated, audit-logged). The handlers look up the
+   * per-run context created by runAgents (server/orchestrator.ts) and
+   * call the engine (server/agents.ts); a step with no run context
+   * throws instead of running free.
+   */
+  const agentsEnabled = async () => (await readPreferences()).cutroomProEnabled;
+  const runIdSchema = z.string().trim().min(1).max(128);
+
+  const agentContext = async (runId: string) => {
+    const { getAgentRunContext } = await import("./agents");
+    const ctx = getAgentRunContext(runId);
+    if (!ctx) throw new Error(`No agent run context for ${runId} — the run may have ended.`);
+    return ctx;
+  };
+
+  const stubVideoSchema = z.object({
+    id: z.string().trim().min(1).max(128),
+    title: z.string().trim().min(1).max(400),
+    channelTitle: z.string().trim().min(1).max(200),
+  }).strict();
+
+  registry.register("agents.plan", {
+    description: "Build the visible agent-team plan for a topic / snapshot (no agent runs). Requires Cutroom Pro on.",
+    paramsSchema: agentPlanInputSchema,
+    enabled: agentsEnabled,
+    handler: async (input) => {
+      const { buildAgentPlan } = await import("@shared/agents");
+      const { randomUUID } = await import("node:crypto");
+      return buildAgentPlan(input, `agt-${Date.now().toString(36)}-${randomUUID().slice(0, 6)}`);
+    },
+  });
+
+  registry.register("agents.run", {
+    description: "Run the agent team: plan, delegate each step through this registry, QA-gate, then assemble. Requires Cutroom Pro on.",
+    paramsSchema: agentPlanInputSchema.extend({
+      transport: z.enum(["auto", "dry-run"]).optional(),
+    }),
+    enabled: agentsEnabled,
+    handler: async (input) => {
+      const { runAgents } = await import("./orchestrator");
+      const { transport, ...planInput } = input as typeof input & { transport?: "auto" | "dry-run" };
+      return runAgents(planInput, { transport });
+    },
+  });
+
+  const agentStep = (agent: "researcher" | "auditor" | "scriptwriter" | "packaging", description: string, inputSchema: z.ZodTypeAny) => {
+    registry.register(`agents.${agent}`, {
+      description,
+      paramsSchema: z.object({ runId: runIdSchema, input: inputSchema }).strict(),
+      enabled: agentsEnabled,
+      handler: async ({ runId, input }) => {
+        const ctx = await agentContext(runId);
+        const { executeAgentStep } = await import("./agents");
+        const result = await executeAgentStep(ctx, agent, input as Record<string, unknown>);
+        return result;
+      },
+    });
+  };
+
+  agentStep("researcher", "Researcher — stamp the snapshot for a topic / channel (stub by default; live reuses a supplied snapshot).", z.object({
+    topic: z.string().trim().min(1).max(500),
+    channelId: z.string().trim().min(2).max(128).optional(),
+    snapshotId: z.string().trim().min(8).max(128).optional(),
+    videos: z.array(stubVideoSchema).min(1).max(50).optional(),
+  }).strict());
+
+  agentStep("auditor", "Insight Auditor — claims with evidence pointers; pointer-less claims are rejected.", z.object({
+    snapshotId: z.string().trim().min(8).max(128),
+    videos: z.array(stubVideoSchema).min(1).max(50).optional(),
+    claims: z.array(agentClaimSchema).min(1).max(24).optional(),
+  }).strict());
+
+  agentStep("scriptwriter", "Scriptwriter — script sections traced to audited claims.", z.object({
+    topic: z.string().trim().min(1).max(500),
+    snapshotId: z.string().trim().min(8).max(128),
+    claims: z.array(agentClaimSchema).min(1).max(24),
+  }).strict());
+
+  agentStep("packaging", "Packaging — title / hook / thumbnail variants, qualitative critique only, no numeric scores.", z.object({
+    script: scriptOutputSchema,
+    brandKitName: z.string().trim().min(1).max(120).optional(),
+  }).strict());
+
+  registry.register("agents.qa", {
+    description: "QA / Compliance gate — deterministic checks (Board subset, Requires Studio, voice clone, invented metrics, captions).",
+    paramsSchema: z.object({ runId: runIdSchema, input: qaInputSchema }).strict(),
+    enabled: agentsEnabled,
+    handler: async ({ input }) => {
+      const { runQaChecks } = await import("@shared/qa");
+      return runQaChecks(input);
+    },
+  });
+
+  registry.register("agents.ledger-record", {
+    description: "Record one agent cost entry in the run ledger.",
+    paramsSchema: z.object({ runId: runIdSchema, entry: costEntrySchema }).strict(),
+    enabled: agentsEnabled,
+    handler: async ({ runId, entry }) => {
+      const ctx = await agentContext(runId);
+      const { addCostEntry } = await import("@shared/cost-ledger");
+      ctx.ledger = addCostEntry(ctx.ledger, entry);
+      return ctx.ledger.totals;
+    },
+  });
+
+  registry.register("agents.ledger-get", {
+    description: "Read the run ledger totals.",
+    paramsSchema: z.object({ runId: runIdSchema }).strict(),
+    enabled: agentsEnabled,
+    handler: async ({ runId }) => {
+      const ctx = await agentContext(runId);
+      return ctx.ledger;
     },
   });
 
