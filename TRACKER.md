@@ -551,4 +551,20 @@ registry v1. No payment, account, or cloud code. Full detail:
 | P-004 | done | Command registry v1 (`shared/commands.ts`); Pro actions wired through it server- and client-side; append-only audit log (`GET /api/pro/audit`) |
 | P-005 | done | Tests **329 pass / 0 fail** after merging `main` (314 from main incl. PR #5 + 15 from M0); `npm run check` 0, `npm run build` 0 |
 | P-006 | todo | Live browser render check of the vendored FilmCraft build on a real machine (static files verified only in the VM) |
-| P-007 | todo | M1 assembler: drive FilmCraft from the Board (see Pro plan, M1) |
+| P-007 | done | M1 assembler: drive FilmCraft from the Board — see Phase 13 below |
+
+## Phase 13 — Cutroom Pro M1: Assembler agent (branch `cutroom-pro-m1`, 2026-11-18; not pushed, no PR)
+
+Board → assembly plan (inspect + approve) → filmcraft-cli → receipt.
+No payment, account, or cloud code. Full detail:
+[docs/CUTROOM_PRO_M1.md](docs/CUTROOM_PRO_M1.md).
+
+| ID | Status | Item |
+| --- | --- | --- |
+| P-101 | done | Assembly plan (`shared/assembler.ts`): ordered steps per Board shot, captions from supplied/on-screen text only, ducking −12 dB keyframes, loudness applied at export (not measured) |
+| P-102 | done | FilmCraft transport (`server/assembler-transport.ts`): real `filmcraft-cli` v0.20.1 found in the Linux tarball (tools/, gitignored, SHA-256 recorded) + DryRunTransport as the explicit fallback |
+| P-103 | done | Runner + receipt (`server/assembler.ts`): every step dispatched through the M0 registry, receipt persisted under `assembler-runs/<runId>/`, cost $0 |
+| P-104 | done | Routes (`POST /api/assembler/plan`, `POST /api/assembler/run`, `GET /api/assembler/receipts[/:runId]`) + Board "Assemble (Pro)" button with plan preview, demo-footage checkbox, and receipt view; Pro-gated (403 when off) |
+| P-105 | done | Tests **343 pass / 0 fail** (329 baseline + 14 M1); `npm run check` 0, `npm run build` 0; E2E script `script/run-assembler-e2e.ts`: dry run ok + real CLI demo render ok (8,098,661 bytes, 576 frames, ffprobe-verified H.264 640×360 24 fps 24.0 s AAC); live HTTP smoke green (403 off, plan/run/receipts 200) |
+| P-106 | todo | M1 follow-ups: caption burn-in option; ducking with real narration audio (generateDucking returned 0 keyframes music-only); measured loudness via an external tool; Board UI media-path inputs |
+| P-107 | todo | M2 agent team (see Pro plan): Researcher / Auditor / Scriptwriter / Packaging as commands under the Orchestrator, QA gates, Cost Ledger |

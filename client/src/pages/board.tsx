@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useWorkflow } from "@/lib/workflow-context";
-import { createProClientRegistry, useProEnabled, type OtioExportResult } from "@/lib/pro-commands";
+import { createProClientRegistry, useProEnabled, type AssemblerPlanResult, type AssemblerReceiptResult, type OtioExportResult } from "@/lib/pro-commands";
 import {
   checkProductionBoard,
   groupShotsIntoClipBriefs,
@@ -98,6 +98,63 @@ export default function BoardPage() {
       setError(err?.message || "Unable to export OTIO.");
     } finally {
       setOtioBusy(false);
+    }
+  };
+
+  // Cutroom Pro M1 — Assembler agent. Plan first (inspect it, then approve
+  // the run); the run goes through the server registry and returns a
+  // receipt. The Board carries no media paths, so a plain run skips every
+  // place step — "Use demo footage" assembles the plan with FilmCraft's
+  // built-in demo clips + music bed instead (real CLI when present).
+  const [assembleBusy, setAssembleBusy] = useState(false);
+  const [demoMedia, setDemoMedia] = useState(false);
+  const [assemblyPlan, setAssemblyPlan] = useState<AssemblerPlanResult | null>(null);
+  const [assemblyReceipt, setAssemblyReceipt] = useState<AssemblerReceiptResult | null>(null);
+
+  const handleAssemblePlan = async () => {
+    if (!board) return;
+    setAssembleBusy(true);
+    setError(null);
+    setAssemblyReceipt(null);
+    try {
+      const plan = (await proRegistry.dispatch("assembler.plan", {
+        board,
+        options: { demoMedia, exportWidth: 640, exportHeight: 360 },
+      })) as AssemblerPlanResult;
+      setAssemblyPlan(plan);
+      toast({
+        title: "Assembly plan ready",
+        description: `${plan.steps.length} steps · ${plan.totalSeconds}s · ${plan.placeholders.length} shot(s) without media. Review it, then approve the run.`,
+      });
+    } catch (err: any) {
+      setError(err?.message || "Unable to build the assembly plan.");
+    } finally {
+      setAssembleBusy(false);
+    }
+  };
+
+  const handleAssembleRun = async () => {
+    if (!board) return;
+    setAssembleBusy(true);
+    setError(null);
+    try {
+      const receipt = (await proRegistry.dispatch("assembler.run", {
+        board,
+        options: { demoMedia, exportWidth: 640, exportHeight: 360 },
+      })) as AssemblerReceiptResult;
+      setAssemblyReceipt(receipt);
+      toast({
+        title: receipt.status === "ok" ? "Assembly complete" : `Assembly ${receipt.status}`,
+        description: receipt.transport.dryRun
+          ? "Dry run — the plan, captions, and ducking are real; no render happened (no filmcraft-cli found)."
+          : receipt.export.path
+            ? `Exported ${receipt.export.bytes ?? "?"} bytes. Loudness was applied at export, not measured.`
+            : receipt.export.note,
+      });
+    } catch (err: any) {
+      setError(err?.message || "Unable to run the assembler.");
+    } finally {
+      setAssembleBusy(false);
     }
   };
 
@@ -196,11 +253,102 @@ export default function BoardPage() {
           {otioBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
           Export OTIO{!proEnabled ? " (Pro)" : ""}
         </Button>
+        <Button
+          variant="outline"
+          onClick={() => void handleAssemblePlan()}
+          disabled={assembleBusy || !board || !proEnabled}
+          data-testid="button-assemble-plan"
+          title={proEnabled ? "Build the assembly plan for this Board (FilmCraft)" : "Cutroom Pro feature — enable it in Settings"}
+        >
+          {assembleBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clapperboard className="mr-2 h-4 w-4" />}
+          Assemble (Pro)
+        </Button>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={demoMedia}
+            disabled={!proEnabled}
+            onChange={(event) => setDemoMedia(event.target.checked)}
+            data-testid="checkbox-assemble-demo-media"
+          />
+          Use FilmCraft demo footage (try it without your own clips)
+        </label>
       </div>
       {!proEnabled && board && (
         <p className="text-xs text-muted-foreground">
           OTIO export is a Cutroom Pro feature — enable Cutroom Pro in Settings to download this Board as a timeline for FilmCraft, Premiere, or DaVinci.
         </p>
+      )}
+
+      {assemblyPlan && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Assembly plan — review before running</CardTitle>
+            <CardDescription>
+              {assemblyPlan.totalSeconds}s · {assemblyPlan.fps} fps · {assemblyPlan.placeholders.length} shot(s) without media
+              {assemblyPlan.demoMedia ? " · demo footage" : ""} · loudness is applied at export, not measured.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <ol className="list-decimal space-y-1 pl-5 text-sm">
+              {assemblyPlan.steps.map((step) => (
+                <li key={step.seq}>
+                  {step.label}
+                  {step.skipReason ? <span className="text-muted-foreground"> — skipped: {step.skipReason}</span> : null}
+                </li>
+              ))}
+            </ol>
+            <p className="text-xs text-muted-foreground">
+              Captions: {assemblyPlan.captions.cues.length} cue(s)
+              {assemblyPlan.captions.captionless.length > 0 ? ` · no caption text for: ${assemblyPlan.captions.captionless.join(", ")}` : ""}
+              {assemblyPlan.ducking.applied ? ` · music ducks to ${assemblyPlan.ducking.reduceDb} dB under narration.` : " · no music bed, no ducking."}
+            </p>
+            <div>
+              <Button
+                onClick={() => void handleAssembleRun()}
+                disabled={assembleBusy || !board}
+                data-testid="button-assemble-run"
+              >
+                {assembleBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clapperboard className="mr-2 h-4 w-4" />}
+                Approve &amp; run assembly
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {assemblyReceipt && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Assembly receipt — {assemblyReceipt.runId}</CardTitle>
+            <CardDescription>
+              Status: {assemblyReceipt.status}
+              {assemblyReceipt.transport.dryRun
+                ? " · dry run — no render happened."
+                : assemblyReceipt.export.path
+                  ? ` · exported: ${assemblyReceipt.export.path}`
+                  : ` · ${assemblyReceipt.export.note}`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <ol className="list-decimal space-y-1 pl-5 text-sm">
+              {assemblyReceipt.steps.map((step) => (
+                <li key={step.seq}>
+                  {step.label} — {step.status}
+                  {step.error ? <span className="text-destructive"> — {step.error}</span> : null}
+                  {step.note ? <span className="text-muted-foreground"> — {step.note}</span> : null}
+                </li>
+              ))}
+            </ol>
+            <p className="text-xs text-muted-foreground">
+              Captions: {assemblyReceipt.captions.cues} cue(s)
+              {assemblyReceipt.captions.captionless.length > 0 ? ` · no caption text for: ${assemblyReceipt.captions.captionless.join(", ")}` : ""}
+              {assemblyReceipt.ducking.applied ? ` · music ducked to ${assemblyReceipt.ducking.reduceDb} dB; CLI returned ${assemblyReceipt.ducking.cliKeyframesReturned} keyframe(s).` : " · no ducking."}
+              {" "}Loudness: not measured{assemblyReceipt.loudness.reason ? ` — ${assemblyReceipt.loudness.reason}` : "."}
+              {" "}Cost: ${assemblyReceipt.cost.amount} {assemblyReceipt.cost.currency}.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {board && (

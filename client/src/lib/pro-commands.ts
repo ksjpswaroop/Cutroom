@@ -39,6 +39,31 @@ function downloadOtio(result: OtioExportResult): void {
   URL.revokeObjectURL(url);
 }
 
+export interface AssemblerPlanResult {
+  snapshotId: string;
+  fps: number;
+  totalSeconds: number;
+  demoMedia: boolean;
+  steps: Array<{ seq: number; command: string; label: string; filmcraftCommand: string | null; skipReason?: string }>;
+  captions: { cues: Array<{ text: string; startSeconds: number; endSeconds: number }>; captionless: string[] };
+  ducking: { applied: boolean; reduceDb: number; note: string };
+  placeholders: string[];
+  loudness: { measured: boolean; reason: string; targetLufs: number };
+  exportFileName: string;
+}
+
+export interface AssemblerReceiptResult {
+  runId: string;
+  status: "ok" | "partial" | "failed";
+  transport: { kind: string; dryRun: boolean; dryRunReason: string | null; version: string | null };
+  steps: Array<{ seq: number; command: string; label: string; status: string; error?: string; note?: string }>;
+  captions: { cues: number; captionless: string[] };
+  ducking: { applied: boolean; reduceDb: number; cliKeyframesReturned: number; note: string };
+  loudness: { measured: boolean; reason: string };
+  export: { path: string | null; bytes: number | null; note: string };
+  cost: { amount: number; currency: string };
+}
+
 export function createProClientRegistry(
   navigate: (path: string) => void,
   isProEnabled?: () => boolean,
@@ -76,6 +101,40 @@ export function createProClientRegistry(
       const result = (await apiRequest("POST", "/api/board/otio", { board, fps })) as OtioExportResult;
       downloadOtio(result);
       return result;
+    },
+  });
+
+  // Cutroom Pro M1 — Assembler agent: plan first (inspect, approve), then run.
+  registry.register("assembler.plan", {
+    description: "Build the assembly plan for the Board (no execution).",
+    paramsSchema: z.object({
+      board: productionBoardOutputSchema,
+      options: z.object({
+        demoMedia: z.boolean().optional(),
+        exportWidth: z.number().int().min(16).max(7680).optional(),
+        exportHeight: z.number().int().min(16).max(4320).optional(),
+      }).strict().optional(),
+    }).strict(),
+    handler: async ({ board, options }) => {
+      const result = (await apiRequest("POST", "/api/assembler/plan", { board, options })) as { plan: AssemblerPlanResult };
+      return result.plan;
+    },
+  });
+
+  registry.register("assembler.run", {
+    description: "Run the assembler on the Board and return the receipt.",
+    paramsSchema: z.object({
+      board: productionBoardOutputSchema,
+      options: z.object({
+        demoMedia: z.boolean().optional(),
+        exportWidth: z.number().int().min(16).max(7680).optional(),
+        exportHeight: z.number().int().min(16).max(4320).optional(),
+        transport: z.enum(["auto", "dry-run"]).optional(),
+      }).strict().optional(),
+    }).strict(),
+    handler: async ({ board, options }) => {
+      const result = (await apiRequest("POST", "/api/assembler/run", { board, options })) as { receipt: AssemblerReceiptResult };
+      return result.receipt;
     },
   });
 
