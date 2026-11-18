@@ -35,6 +35,8 @@ const SUPPORTED_KEYS = [
   "OPENAI_API_KEY",
   "OPENAI_BASE_URL",
   "OPENAI_MODEL",
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_MODEL",
   "OLLAMA_BASE_URL",
   "OLLAMA_MODEL",
   "ELEVENLABS_API_KEY",
@@ -60,6 +62,8 @@ export interface ApiKeySettings {
   openaiApiKey?: string;
   openaiBaseUrl?: string;
   openaiModel?: string;
+  anthropicApiKey?: string;
+  anthropicModel?: string;
   ollamaBaseUrl?: string;
   ollamaModel?: string;
   elevenLabsApiKey?: string;
@@ -80,6 +84,8 @@ export const apiKeySettingsSchema = z.object({
   openaiApiKey: z.string().trim().min(8).max(512).optional(),
   openaiBaseUrl: z.string().trim().url().max(500).optional(),
   openaiModel: z.string().trim().min(1).max(200).optional(),
+  anthropicApiKey: z.string().trim().min(8).max(512).optional(),
+  anthropicModel: z.string().trim().min(1).max(200).optional(),
   ollamaBaseUrl: z.string().trim().url().max(500).optional(),
   ollamaModel: z.string().trim().min(1).max(200).optional(),
   elevenLabsApiKey: z.string().trim().min(8).max(512).optional(),
@@ -181,6 +187,8 @@ function aiProviderLabel(id: AiProviderId): string {
       return "OpenAI-compatible";
     case "minimax":
       return "MiniMax";
+    case "anthropic":
+      return "Anthropic (Claude)";
     default: {
       const _exhaustive: never = id;
       return _exhaustive;
@@ -207,6 +215,7 @@ export function getApiKeyStatus() {
     openaiCompatible: Boolean(
       process.env.OPENAI_API_KEY?.trim() || process.env.OPENAI_COMPATIBLE_API_KEY?.trim(),
     ),
+    anthropic: Boolean(process.env.ANTHROPIC_API_KEY?.trim()),
     ollama: true,
     minimax: minimaxConfigured(),
     aiProvider,
@@ -221,6 +230,7 @@ export function getApiKeyStatus() {
       imageOptions: GEMINI_IMAGE_MODELS,
       openrouterModel: process.env.OPENROUTER_MODEL?.trim() || "openrouter/auto",
       openaiModel: process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini",
+      anthropicModel: process.env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-5-5",
       ollamaModel: ollamaModelName(),
       openaiBaseUrl: process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1",
       ollamaBaseUrl: ollamaRootUrl(),
@@ -288,6 +298,7 @@ export async function saveApiKeySettings(input: ApiKeySettings) {
   const geminiApiKey = validateApiKey(input.geminiApiKey, "Gemini API key");
   const openrouterApiKey = validateApiKey(input.openrouterApiKey, "OpenRouter API key");
   const openaiApiKey = validateApiKey(input.openaiApiKey, "OpenAI-compatible API key");
+  const anthropicApiKey = validateApiKey(input.anthropicApiKey, "Anthropic API key");
   const elevenLabsApiKey = validateApiKey(input.elevenLabsApiKey, "ElevenLabs API key");
   const minimaxApiKey = validateApiKey(input.minimaxApiKey, "MiniMax API key");
   const currentStatus = getApiKeyStatus();
@@ -302,6 +313,8 @@ export async function saveApiKeySettings(input: ApiKeySettings) {
     || input.openrouterModel
     || input.openaiBaseUrl
     || input.openaiModel
+    || anthropicApiKey
+    || input.anthropicModel
     || input.ollamaBaseUrl
     || input.ollamaModel
     || elevenLabsApiKey
@@ -379,6 +392,15 @@ export async function saveApiKeySettings(input: ApiKeySettings) {
   if (input.openaiModel?.trim()) {
     contents = setEnvValue(contents, "OPENAI_MODEL", input.openaiModel.trim());
   }
+  if (anthropicApiKey) {
+    const storedInKeychain = await persistSecret("ANTHROPIC_API_KEY", anthropicApiKey);
+    if (!storedInKeychain) {
+      contents = setEnvValue(contents, "ANTHROPIC_API_KEY", anthropicApiKey);
+    }
+  }
+  if (input.anthropicModel?.trim()) {
+    contents = setEnvValue(contents, "ANTHROPIC_MODEL", input.anthropicModel.trim());
+  }
   if (input.ollamaBaseUrl?.trim()) {
     contents = setEnvValue(contents, "OLLAMA_BASE_URL", input.ollamaBaseUrl.trim());
   }
@@ -430,6 +452,8 @@ export async function saveApiKeySettings(input: ApiKeySettings) {
   if (openaiApiKey) process.env.OPENAI_API_KEY = openaiApiKey;
   if (input.openaiBaseUrl?.trim()) process.env.OPENAI_BASE_URL = input.openaiBaseUrl.trim();
   if (input.openaiModel?.trim()) process.env.OPENAI_MODEL = input.openaiModel.trim();
+  if (anthropicApiKey) process.env.ANTHROPIC_API_KEY = anthropicApiKey;
+  if (input.anthropicModel?.trim()) process.env.ANTHROPIC_MODEL = input.anthropicModel.trim();
   if (input.ollamaBaseUrl?.trim()) process.env.OLLAMA_BASE_URL = input.ollamaBaseUrl.trim();
   if (input.ollamaModel?.trim()) process.env.OLLAMA_MODEL = input.ollamaModel.trim();
   if (elevenLabsApiKey) process.env.ELEVENLABS_API_KEY = elevenLabsApiKey;

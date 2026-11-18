@@ -1,7 +1,9 @@
+import { createAnthropicTextProvider } from "./anthropic-adapter";
 import { createGeminiTextProvider } from "./gemini-adapter";
 import { createGeminiImageProvider } from "./gemini-image-adapter";
 import { createMiniMaxTextProvider } from "./minimax-adapter";
 import { createMiniMaxImageProvider } from "./minimax-image-adapter";
+import { createMiniMaxVideoProvider } from "./minimax-video-adapter";
 import { createOllamaImageProvider } from "./ollama-image-adapter";
 import { createOllamaTextProvider } from "./ollama-adapter";
 import {
@@ -13,10 +15,13 @@ import { minimaxConfigured } from "../minimax";
 import {
   isAiImageProviderId,
   isAiProviderId,
+  isAiVideoProviderId,
   type AiImageProvider,
   type AiImageProviderId,
   type AiProviderId,
   type AiTextProvider,
+  type AiVideoProvider,
+  type AiVideoProviderId,
 } from "./types";
 
 export type {
@@ -28,17 +33,25 @@ export type {
   AiJsonCompletionResult,
   AiProviderId,
   AiTextProvider,
+  AiVideoClipRequest,
+  AiVideoClipResult,
+  AiVideoGenerateOptions,
+  AiVideoProvider,
+  AiVideoProviderId,
+  AiVideoQuote,
 } from "./types";
 export {
   AI_IMAGE_PROVIDER_IDS,
   AI_PROVIDER_IDS,
+  AI_VIDEO_PROVIDER_IDS,
   isAiImageProviderId,
   isAiProviderId,
+  isAiVideoProviderId,
 } from "./types";
 
 /**
  * Resolve the active text provider.
- * Env: `CUTROOM_AI_PROVIDER` = gemini | openai_compatible | ollama | openrouter | minimax (default: gemini).
+ * Env: `CUTROOM_AI_PROVIDER` = gemini | openai_compatible | ollama | openrouter | minimax | anthropic (default: gemini).
  */
 export function resolveAiProviderId(
   raw: string | undefined = process.env.CUTROOM_AI_PROVIDER,
@@ -60,6 +73,8 @@ export function getTextProvider(providerId?: AiProviderId): AiTextProvider {
       return createOpenRouterTextProvider();
     case "minimax":
       return createMiniMaxTextProvider();
+    case "anthropic":
+      return createAnthropicTextProvider();
     default: {
       const _exhaustive: never = id;
       return _exhaustive;
@@ -90,6 +105,29 @@ export function getImageProvider(providerId?: AiImageProviderId): AiImageProvide
       return createOllamaImageProvider();
     case "minimax":
       return createMiniMaxImageProvider();
+    default: {
+      const _exhaustive: never = id;
+      return _exhaustive;
+    }
+  }
+}
+
+/**
+ * Resolve the active video provider (PS-201, cinematic Veo-class path).
+ * Env: `CUTROOM_VIDEO_PROVIDER` = minimax (default: minimax).
+ */
+export function resolveAiVideoProviderId(
+  raw: string | undefined = process.env.CUTROOM_VIDEO_PROVIDER,
+): AiVideoProviderId {
+  const value = (raw || "").trim().toLowerCase();
+  return isAiVideoProviderId(value) ? value : "minimax";
+}
+
+export function getVideoProvider(providerId?: AiVideoProviderId): AiVideoProvider {
+  const id = providerId ?? resolveAiVideoProviderId();
+  switch (id) {
+    case "minimax":
+      return createMiniMaxVideoProvider();
     default: {
       const _exhaustive: never = id;
       return _exhaustive;
