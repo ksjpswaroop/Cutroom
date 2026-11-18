@@ -2,6 +2,8 @@
 
 **Companion docs:** [ROADMAP.md](../ROADMAP.md) · [TRACKER.md](../TRACKER.md) · [STRATEGY.md](STRATEGY.md) · [MODELS.md](MODELS.md) · [HERMES_DECISION.md](HERMES_DECISION.md) · [V3_ROADMAP.md](V3_ROADMAP.md) · [V3_FEATURES.md](V3_FEATURES.md)
 
+**Release kit (2026-11-18):** [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) (go/no-go + build artifacts + live acceptance) · [INVESTOR_DEMO.md](INVESTOR_DEMO.md) (6-minute demo with real screenshots) · [guides/persona-walkthroughs.md](guides/persona-walkthroughs.md) (per-persona guides with screenshots)
+
 ## Version map
 
 | Version | Theme | Exit criteria |
