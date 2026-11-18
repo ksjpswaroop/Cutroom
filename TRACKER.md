@@ -567,4 +567,18 @@ No payment, account, or cloud code. Full detail:
 | P-104 | done | Routes (`POST /api/assembler/plan`, `POST /api/assembler/run`, `GET /api/assembler/receipts[/:runId]`) + Board "Assemble (Pro)" button with plan preview, demo-footage checkbox, and receipt view; Pro-gated (403 when off) |
 | P-105 | done | Tests **343 pass / 0 fail** (329 baseline + 14 M1); `npm run check` 0, `npm run build` 0; E2E script `script/run-assembler-e2e.ts`: dry run ok + real CLI demo render ok (8,098,661 bytes, 576 frames, ffprobe-verified H.264 640×360 24 fps 24.0 s AAC); live HTTP smoke green (403 off, plan/run/receipts 200) |
 | P-106 | todo | M1 follow-ups: caption burn-in option; ducking with real narration audio (generateDucking returned 0 keyframes music-only); measured loudness via an external tool; Board UI media-path inputs |
-| P-107 | todo | M2 agent team (see Pro plan): Researcher / Auditor / Scriptwriter / Packaging as commands under the Orchestrator, QA gates, Cost Ledger |
+| P-107 | done | M2 agent team — see Phase 14 below |
+
+## Phase 14 — Cutroom Pro M2: Agent team (branch `cutroom-pro-m2`, 2026-11-18; not pushed, no PR)
+
+Orchestrator plan (inspect + approve) → Researcher / Auditor / Scriptwriter /
+Packaging as registry commands → deterministic QA gate → M1 assembler.
+Structured handoffs, visible agent memory, Cost Ledger with $0 spend cap.
+No payment, account, or cloud code. Full detail:
+[docs/CUTROOM_PRO_M2.md](docs/CUTROOM_PRO_M2.md).
+
+| ID | Status | Item |
+| --- | --- | --- |
+| P-107 | done | Agent team (`shared/agents.ts`, `server/agents.ts`, `server/orchestrator.ts`): Orchestrator with plan-first approval, single no-spend retry, escalation to needs-human on paid-call failure / QA Fail / spend-cap / ambiguous evidence; four agents as registry commands (stub fixtures deterministic, live validates against the same schemas); QA gate (5 checks, Fail blocks assembler with 409); Cost Ledger (every step recorded, tokens never invented, spend cap default $0 in Settings); agent memory JSON with Edit/Delete; Agents view (`/agents`) + routes (`POST /api/agents/plan|run`, `GET /api/agents/runs/:runId|ledger`, `GET/PUT/DELETE /api/agents/memory`), all Pro-gated |
+| P-108 | done | Tests **364 pass / 0 fail** (343 baseline + 21 M2); `npm run check` 0, `npm run build` 0; E2E script `script/run-agents-e2e.ts`: stub run ok (6 receipts, QA pass, ledger $0 / quota 100 / tokens not reported, assembler partial dry-run) + QA-fail run blocks the assembler (needs-human, no assembler receipt) |
+| P-109 | todo | M2 follow-ups: live-provider run on a Mac (never run against a real provider yet; live costs stay "not reported" until the provider interface exposes usage); Agents view live-browser render check; QA warns (not fails) when no throughline data exists |

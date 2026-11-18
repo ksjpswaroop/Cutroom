@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { productionBoardOutputSchema } from "@shared/board-contracts";
+import { qaReportSchema, type QaReport } from "@shared/qa";
 import {
   assemblerPlanOptionsSchema,
   buildAssemblyPlan,
@@ -51,8 +52,11 @@ export interface AssemblerStepResult {
 export interface AssemblerReceipt {
   runId: string;
   snapshotId: string;
-  status: "ok" | "partial" | "failed";
+  /** "blocked" — the QA report failed, so no step ran and nothing was exported (M2). */
+  status: "ok" | "partial" | "failed" | "blocked";
   proEnabled: boolean;
+  /** The QA report that gated this run, when one was supplied (M2). */
+  qa?: import("@shared/qa").QaReport;
   transport: {
     kind: "local-cli" | "dry-run";
     label: string;
@@ -99,6 +103,8 @@ export const assemblerRunInputSchema = z.object({
   options: assemblerPlanOptionsSchema.optional(),
   /** Transport override for tests ("dry-run" forces the DryRunTransport). */
   transport: z.enum(["auto", "dry-run"]).optional(),
+  /** QA report from the M2 agent run. A Fail blocks the run before any step executes. */
+  qaReport: qaReportSchema.optional(),
 }).strict();
 
 export type AssemblerRunInput = z.infer<typeof assemblerRunInputSchema>;
@@ -180,9 +186,55 @@ export async function runAssembly(
   const plan = buildAssemblyPlan(input.board, options);
   const workDir = assemblerRunDir(runId);
   await mkdir(workDir, { recursive: true });
+  await writeFile(path.join(workDir, "plan.json"), `${JSON.stringify(plan, null, 2)}\n`, "utf8");
+
+  // Cutroom Pro M2 — QA gate: a Fail blocks the run before any step
+  // executes, before any transport starts, and before any export. The
+  // blocked receipt is the durable record of why nothing happened.
+  if (input.qaReport?.status === "fail") {
+    const failedChecks = input.qaReport.checks.filter((c) => c.status === "fail").map((c) => c.id).join(", ");
+    const receipt: AssemblerReceipt = {
+      runId,
+      snapshotId: plan.snapshotId,
+      status: "blocked",
+      proEnabled: opts.proEnabled ?? true,
+      qa: input.qaReport,
+      transport: {
+        kind: "dry-run",
+        label: "Blocked by QA — no transport started.",
+        cliPath: null,
+        version: null,
+        dryRun: true,
+        dryRunReason: "Blocked by QA — no transport started.",
+      },
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      durationMs: Date.now() - startedMs,
+      demoMedia: plan.demoMedia,
+      plan,
+      steps: plan.steps.map((step) => ({
+        seq: step.seq,
+        command: step.command,
+        label: step.label,
+        status: "not-run" as const,
+        dryRun: true,
+        error: `Blocked by QA (${failedChecks}).`,
+      })),
+      captions: { cues: plan.captions.cues.length, captionless: plan.captions.captionless, srtPath: path.join(workDir, "captions.srt"), vttPath: path.join(workDir, "captions.vtt") },
+      ducking: { applied: plan.ducking.applied, reduceDb: plan.ducking.reduceDb, plannedKeyframes: plan.ducking.keyframes, cliKeyframesReturned: 0, note: plan.ducking.note },
+      loudness: plan.loudness,
+      export: { path: null, bytes: null, frames: null, format: "h264", note: `Not exported — blocked by QA (${failedChecks}).` },
+      cost: { amount: 0, currency: "USD", note: "Blocked by QA; no provider spend." },
+      audit: [],
+      workDir,
+      projectPath: null,
+    };
+    await persistReceipt(receipt);
+    return receipt;
+  }
+
   await writeFile(path.join(workDir, "captions.srt"), plan.captions.srt, "utf8");
   await writeFile(path.join(workDir, "captions.vtt"), plan.captions.vtt, "utf8");
-  await writeFile(path.join(workDir, "plan.json"), `${JSON.stringify(plan, null, 2)}\n`, "utf8");
 
   const resolved = opts.transportOverride
     ? { transport: opts.transportOverride, cliPath: null, version: null, dryRunReason: opts.transportOverride.kind === "dry-run" ? "Dry run (transport override)." : null }
@@ -286,6 +338,7 @@ export async function runAssembly(
     snapshotId: plan.snapshotId,
     status,
     proEnabled: opts.proEnabled ?? true,
+    ...(input.qaReport ? { qa: input.qaReport } : {}),
     transport: {
       kind: transport.kind,
       label: transport.label,

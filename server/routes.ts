@@ -314,7 +314,11 @@ export async function registerRoutes(
   app.post("/api/assembler/run", async (req, res) => {
     if (!localGuard(req, res, "Assembler run")) return;
     try {
-      const receipt = await proRegistry.dispatch("assembler.run", req.body ?? {});
+      const receipt = await proRegistry.dispatch("assembler.run", req.body ?? {}) as { status?: string };
+      // M2 — a QA Fail blocks the run: 409 with the blocked receipt (and its QA report).
+      if (receipt.status === "blocked") {
+        return res.status(409).json({ error: "Assembler run blocked by QA.", receipt });
+      }
       return res.json({ success: true, receipt });
     } catch (error: any) {
       const message = error?.message || "Unable to run the assembler.";
@@ -350,6 +354,125 @@ export async function registerRoutes(
       return res.json({ receipt });
     } catch (error: any) {
       return res.status(500).json({ error: error?.message || "Unable to load the assembler receipt." });
+    }
+  });
+
+  /**
+   * Cutroom Pro M2 — Agent team. Plan first (inspect, approve), then run
+   * (Orchestrator delegates each step through the Pro registry, QA-gates,
+   * then assembles). All local-only and Pro-gated (403 when off). The
+   * spend cap defaults to the Settings value (default $0) when the body
+   * does not supply one. Agent receipts persist under
+   * <app-data root>/agent-runs/<runId>/; agent memory under
+   * <app-data root>/agent-memory/<projectId>.json.
+   */
+  const agentsGuard = async (req: Parameters<typeof isLocalSettingsRequest>[0], res: Response) => {
+    if (!localGuard(req, res, "Agent team")) return false;
+    const preferences = await readPreferences();
+    if (!preferences.cutroomProEnabled) {
+      res.status(403).json({ error: "Cutroom Pro is off. Enable it in Settings to use the agent team." });
+      return false;
+    }
+    return true;
+  };
+
+  const withSpendCap = async (body: Record<string, unknown>) => {
+    if (body.spendCapUsd !== undefined) return body;
+    const preferences = await readPreferences();
+    return { ...body, spendCapUsd: preferences.agentSpendCapUsd ?? 0 };
+  };
+
+  app.post("/api/agents/plan", async (req, res) => {
+    if (!(await agentsGuard(req, res))) return;
+    try {
+      const plan = await proRegistry.dispatch("agents.plan", await withSpendCap(req.body ?? {}));
+      return res.json({ success: true, plan });
+    } catch (error: any) {
+      const message = error?.message || "Unable to build the agent plan.";
+      const status = /disabled/i.test(message) ? 403 : 400;
+      return res.status(status).json({ error: message });
+    }
+  });
+
+  app.post("/api/agents/run", async (req, res) => {
+    if (!(await agentsGuard(req, res))) return;
+    try {
+      const receipt = await proRegistry.dispatch("agents.run", await withSpendCap(req.body ?? {}));
+      return res.json({ success: true, receipt });
+    } catch (error: any) {
+      const message = error?.message || "Unable to run the agent team.";
+      const status = /disabled/i.test(message) ? 403 : 400;
+      return res.status(status).json({ error: message });
+    }
+  });
+
+  app.get("/api/agents/runs/:runId", async (req, res) => {
+    if (!(await agentsGuard(req, res))) return;
+    const runId = req.params.runId;
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(runId)) {
+      return res.status(400).json({ error: "Invalid run id." });
+    }
+    try {
+      const { getAgentReceipt } = await import("./orchestrator");
+      const receipt = await getAgentReceipt(runId);
+      if (!receipt) return res.status(404).json({ error: "Agent run not found." });
+      return res.json({ receipt });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to load the agent run." });
+    }
+  });
+
+  app.get("/api/agents/ledger", async (req, res) => {
+    if (!(await agentsGuard(req, res))) return;
+    try {
+      const { aggregateLedger, listAgentReceipts } = await import("./orchestrator");
+      const ledger = await aggregateLedger();
+      const runs = (await listAgentReceipts()).map((receipt) => ({
+        runId: receipt.runId,
+        status: receipt.status,
+        startedAt: receipt.startedAt,
+        totals: receipt.ledger.totals,
+      }));
+      return res.json({ ledger, runs });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to load the agent ledger." });
+    }
+  });
+
+  const projectIdParam = (req: { query?: Record<string, unknown> }) => {
+    const value = req.query?.projectId;
+    return typeof value === "string" && value.trim().length > 0 ? value.trim().slice(0, 128) : "default";
+  };
+
+  app.get("/api/agents/memory", async (req, res) => {
+    if (!(await agentsGuard(req, res))) return;
+    try {
+      const { readAgentMemory } = await import("./agent-memory");
+      return res.json({ memory: await readAgentMemory(projectIdParam(req)) });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to load agent memory." });
+    }
+  });
+
+  app.put("/api/agents/memory", async (req, res) => {
+    if (!(await agentsGuard(req, res))) return;
+    try {
+      const { writeAgentMemory } = await import("./agent-memory");
+      const memory = await writeAgentMemory({ ...req.body, projectId: projectIdParam(req) });
+      return res.json({ success: true, memory });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Unable to save agent memory." });
+    }
+  });
+
+  app.delete("/api/agents/memory", async (req, res) => {
+    if (!(await agentsGuard(req, res))) return;
+    try {
+      const { deleteAgentMemory } = await import("./agent-memory");
+      const deleted = await deleteAgentMemory(projectIdParam(req));
+      return res.json({ success: true, deleted });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to delete agent memory." });
     }
   });
 
