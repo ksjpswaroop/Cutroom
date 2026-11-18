@@ -1,5 +1,7 @@
 node_modules
 dist
+# Cutroom Pro M1 — local-only binaries (filmcraft-cli); see tools/README.md.
+tools/filmcraft-cli
 .env
 .env.*
 !.env.example

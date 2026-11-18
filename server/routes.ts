@@ -289,6 +289,70 @@ export async function registerRoutes(
     return res.json({ entries: proRegistry.auditLog() });
   });
 
+  /**
+   * Cutroom Pro M1 — Assembler agent. Plan first (inspect, approve),
+   * then run (dispatches every step through the Pro registry and returns
+   * the receipt). Both are local-only and Pro-gated (403 when off).
+   * Receipts are persisted under <app-data root>/assembler-runs/<runId>/.
+   */
+  app.post("/api/assembler/plan", async (req, res) => {
+    if (!localGuard(req, res, "Assembler plan")) return;
+    try {
+      const plan = await proRegistry.dispatch("assembler.plan", req.body ?? {});
+      return res.json({ success: true, plan });
+    } catch (error: any) {
+      const message = error?.message || "Unable to build the assembly plan.";
+      const status = /disabled/i.test(message) ? 403 : 400;
+      return res.status(status).json({
+        error: /disabled/i.test(message)
+          ? "Cutroom Pro is off. Enable it in Settings to assemble."
+          : message,
+      });
+    }
+  });
+
+  app.post("/api/assembler/run", async (req, res) => {
+    if (!localGuard(req, res, "Assembler run")) return;
+    try {
+      const receipt = await proRegistry.dispatch("assembler.run", req.body ?? {});
+      return res.json({ success: true, receipt });
+    } catch (error: any) {
+      const message = error?.message || "Unable to run the assembler.";
+      const status = /disabled/i.test(message) ? 403 : 400;
+      return res.status(status).json({
+        error: /disabled/i.test(message)
+          ? "Cutroom Pro is off. Enable it in Settings to assemble."
+          : message,
+      });
+    }
+  });
+
+  app.get("/api/assembler/receipts", async (req, res) => {
+    if (!localGuard(req, res, "Assembler receipts")) return;
+    try {
+      const { listReceipts } = await import("./assembler");
+      return res.json({ receipts: await listReceipts() });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to list assembler receipts." });
+    }
+  });
+
+  app.get("/api/assembler/receipts/:runId", async (req, res) => {
+    if (!localGuard(req, res, "Assembler receipt")) return;
+    const runId = req.params.runId;
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(runId)) {
+      return res.status(400).json({ error: "Invalid run id." });
+    }
+    try {
+      const { getReceipt } = await import("./assembler");
+      const receipt = await getReceipt(runId);
+      if (!receipt) return res.status(404).json({ error: "Receipt not found." });
+      return res.json({ receipt });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to load the assembler receipt." });
+    }
+  });
+
   app.put("/api/settings/brand-kit", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     if (!isLocalSettingsRequest(req)) {
