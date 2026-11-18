@@ -33,6 +33,7 @@ interface ApiKeyStatus {
   gemini: boolean;
   openrouter?: boolean;
   openaiCompatible?: boolean;
+  anthropic?: boolean;
   ollama?: boolean;
   minimax?: boolean;
   aiProvider?: string;
@@ -77,6 +78,7 @@ interface ApiKeyStatus {
     imageOptions: ModelOption[];
     openrouterModel?: string;
     openaiModel?: string;
+    anthropicModel?: string;
     ollamaModel?: string;
     openaiBaseUrl?: string;
     ollamaBaseUrl?: string;
@@ -180,6 +182,7 @@ export default function SettingsPage() {
   const [aiProvider, setAiProvider] = useState("gemini");
   const [openrouterModel, setOpenrouterModel] = useState("openrouter/auto");
   const [openaiModel, setOpenaiModel] = useState("gpt-4o-mini");
+  const [anthropicModel, setAnthropicModel] = useState("claude-sonnet-5-5");
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState("https://api.openai.com/v1");
   const [ollamaModel, setOllamaModel] = useState("llama3.2:3b");
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://127.0.0.1:11434");
@@ -211,6 +214,7 @@ export default function SettingsPage() {
   const geminiKeyRef = useRef<HTMLInputElement>(null);
   const openrouterKeyRef = useRef<HTMLInputElement>(null);
   const openaiKeyRef = useRef<HTMLInputElement>(null);
+  const anthropicKeyRef = useRef<HTMLInputElement>(null);
   const minimaxKeyRef = useRef<HTMLInputElement>(null);
   const elevenLabsKeyRef = useRef<HTMLInputElement>(null);
   const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState("");
@@ -234,6 +238,7 @@ export default function SettingsPage() {
         setAiProvider(nextStatus.aiProvider || "gemini");
         setOpenrouterModel(nextStatus.models.openrouterModel || "openrouter/auto");
         setOpenaiModel(nextStatus.models.openaiModel || "gpt-4o-mini");
+        setAnthropicModel(nextStatus.models.anthropicModel || "claude-sonnet-5-5");
         setOpenaiBaseUrl(nextStatus.models.openaiBaseUrl || "https://api.openai.com/v1");
         setOllamaModel(nextStatus.models.ollamaModel || "llama3.2:3b");
         setOllamaBaseUrl(nextStatus.models.ollamaBaseUrl || "http://127.0.0.1:11434");
@@ -541,6 +546,7 @@ export default function SettingsPage() {
     const geminiApiKey = geminiKeyRef.current?.value.trim() || "";
     const openrouterApiKey = openrouterKeyRef.current?.value.trim() || "";
     const openaiApiKey = openaiKeyRef.current?.value.trim() || "";
+    const anthropicApiKey = anthropicKeyRef.current?.value.trim() || "";
     const minimaxApiKey = minimaxKeyRef.current?.value.trim() || "";
     const elevenLabsApiKey = elevenLabsKeyRef.current?.value.trim() || "";
     const modelsChanged = geminiTextModel !== status.models.text
@@ -548,6 +554,7 @@ export default function SettingsPage() {
     const providerChanged = aiProvider !== (status.aiProvider || "gemini")
       || openrouterModel !== (status.models.openrouterModel || "openrouter/auto")
       || openaiModel !== (status.models.openaiModel || "gpt-4o-mini")
+      || anthropicModel !== (status.models.anthropicModel || "claude-sonnet-5-5")
       || openaiBaseUrl !== (status.models.openaiBaseUrl || "https://api.openai.com/v1")
       || ollamaModel !== (status.models.ollamaModel || "llama3.2:3b")
       || ollamaBaseUrl !== (status.models.ollamaBaseUrl || "http://127.0.0.1:11434")
@@ -555,7 +562,7 @@ export default function SettingsPage() {
       || voiceConsent !== Boolean(status.render?.voiceConsent)
       || cinematicVeoEnabled !== Boolean(status.render?.cinematicVeoEnabled ?? status.render?.cinematicVeo);
 
-    if (!youtubeApiKey && !geminiApiKey && !openrouterApiKey && !openaiApiKey && !minimaxApiKey && !elevenLabsApiKey
+    if (!youtubeApiKey && !geminiApiKey && !openrouterApiKey && !openaiApiKey && !anthropicApiKey && !minimaxApiKey && !elevenLabsApiKey
       && !modelsChanged && !providerChanged) {
       toast({
         title: "No changes to save",
@@ -571,6 +578,7 @@ export default function SettingsPage() {
         ...(geminiApiKey ? { geminiApiKey } : {}),
         ...(openrouterApiKey ? { openrouterApiKey } : {}),
         ...(openaiApiKey ? { openaiApiKey } : {}),
+        ...(anthropicApiKey ? { anthropicApiKey } : {}),
         ...(minimaxApiKey ? { minimaxApiKey } : {}),
         ...(elevenLabsApiKey ? { elevenLabsApiKey } : {}),
         ...(elevenLabsVoiceId.trim() ? { elevenLabsVoiceId: elevenLabsVoiceId.trim() } : {}),
@@ -581,6 +589,7 @@ export default function SettingsPage() {
         aiProvider,
         openrouterModel,
         openaiModel,
+        anthropicModel,
         openaiBaseUrl,
         ollamaModel,
         ollamaBaseUrl,
@@ -595,6 +604,7 @@ export default function SettingsPage() {
       setAiProvider(response.status.aiProvider || "gemini");
       setOpenrouterModel(response.status.models.openrouterModel || "openrouter/auto");
       setOpenaiModel(response.status.models.openaiModel || "gpt-4o-mini");
+      setAnthropicModel(response.status.models.anthropicModel || "claude-sonnet-5-5");
       setOpenaiBaseUrl(response.status.models.openaiBaseUrl || "https://api.openai.com/v1");
       setOllamaModel(response.status.models.ollamaModel || "llama3.2:3b");
       setOllamaBaseUrl(response.status.models.ollamaBaseUrl || "http://127.0.0.1:11434");
@@ -602,6 +612,7 @@ export default function SettingsPage() {
       if (geminiKeyRef.current) geminiKeyRef.current.value = "";
       if (openrouterKeyRef.current) openrouterKeyRef.current.value = "";
       if (openaiKeyRef.current) openaiKeyRef.current.value = "";
+      if (anthropicKeyRef.current) anthropicKeyRef.current.value = "";
       if (minimaxKeyRef.current) minimaxKeyRef.current.value = "";
       if (elevenLabsKeyRef.current) elevenLabsKeyRef.current.value = "";
       setVoiceConsent(Boolean(response.status.render?.voiceConsent));
@@ -1183,6 +1194,7 @@ export default function SettingsPage() {
                       { id: "minimax", label: "MiniMax" },
                       { id: "openrouter", label: "OpenRouter" },
                       { id: "openai_compatible", label: "OpenAI-compatible" },
+                      { id: "anthropic", label: "Anthropic (Claude)" },
                       { id: "ollama", label: "Ollama (local)" },
                     ]).map((option) => (
                       <SelectItem key={option.id} value={option.id}>
@@ -1250,6 +1262,30 @@ export default function SettingsPage() {
                         data-testid="input-openai-model"
                       />
                     </div>
+                  </div>
+                </KeyField>
+              )}
+
+              {aiProvider === "anthropic" && (
+                <KeyField
+                  id="anthropic-api-key"
+                  label="Anthropic (Claude)"
+                  description="Routes Package JSON through the Anthropic Messages API (Claude). Key is not shown again after save."
+                  configured={Boolean(status.anthropic)}
+                  inputRef={anthropicKeyRef}
+                  providerUrl="https://console.anthropic.com/settings/keys"
+                  providerLabel="Open Anthropic API keys"
+                >
+                  <div className="space-y-2 border-t border-border pt-4">
+                    <Label htmlFor="anthropic-model">Model</Label>
+                    <Input
+                      id="anthropic-model"
+                      value={anthropicModel}
+                      onChange={(event) => setAnthropicModel(event.target.value)}
+                      placeholder="claude-sonnet-5-5"
+                      className="font-mono"
+                      data-testid="input-anthropic-model"
+                    />
                   </div>
                 </KeyField>
               )}
