@@ -229,6 +229,33 @@ Closed the L-808 tail (TDD — tests written first), re-verified `npm run check`
 Tests now **299 pass / 0 fail** (+33 over baseline). The only remaining open
 items are the env/owner-gated blockers below (`L-902`/`L-903`/`L-906`/`L-907`).
 
+## Status — 2026-11-18 (build-time dependency advisories)
+
+`npm audit --omit=dev` reports **10 high** (plus 2 moderate incl. dev). All of them
+are **build-time toolchain** advisories, not request-path exposure:
+
+- **`picomatch` ReDoS (GHSA-fc5q-39xc-vjpf), the root of all 10.** It reaches the
+  "production" tree only because `tailwindcss-animate@1.0.7` declares `tailwindcss`
+  as a regular `dependency` (not a peer/dev one), dragging tailwind's glob chain
+  (`chokidar`, `micromatch`, `fast-glob`, `readdirp`, `anymatch`, `sucrase`,
+  `tinyglobby`, `fdir`) into `--omit=dev`. These are compile-time file globs over the
+  project's own config — there is no attacker-controlled glob input in a local-first
+  desktop app, so real exploitability is ~nil.
+- **No upstream fix exists.** The advisory covers `picomatch <=4.0.7` and 4.0.7 is the
+  latest published version, so there is no patched picomatch to pin via `overrides`.
+- **The only `npm audit fix` path is breaking:** it bumps `tailwindcss` 3→**4**,
+  `vite`→6, `@vitejs/plugin-react`→5 and *downgrades* `@tailwindcss/typography`. That
+  was tried on a branch (`fix/tailwindcss-advisories`) and **breaks the production
+  build** (`vite:css` transform error on `client/src/index.css`; tsc stays green but
+  `npm run build` fails) — tailwind v4 is a CSS-first rewrite needing a real
+  migration (`@import "tailwindcss"`, `@tailwindcss/postcss`, v4-compatible
+  `typography`/`animate` plugins), not an audit-fix. **Not merged.**
+
+**Decision:** track as an **accepted, build-time-only** advisory. Clearing it is a
+dedicated **tailwind v4 + vite v6 migration** with full visual verification, owned as
+its own task — not a security patch. (Mirrors the earlier `zod` major: a contract-
+level bump handled deliberately, never `audit fix --force`.)
+
 ### Still open — named blockers, not simulated
 
 - **Live-provider acceptance pass — OPEN.** Not run. It requires a clean Mac and
