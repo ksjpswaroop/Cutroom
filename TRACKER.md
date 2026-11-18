@@ -418,3 +418,20 @@ fake-publish and the retired store/credits stay out regardless of the model.
 - A hosted/non-loopback surface **without** an explicit auth + security design (gated behind `G-001` = C only)
 - The agent entering payment credentials, running a live transaction, flipping Stripe to live, or publishing to production (all **owner actions**)
 - Telemetry (diagnostics stay opt-in, local-only, one user-chosen file)
+
+## Phase 11 — Cutroom Pro M0 (branch `cutroom-pro-m0`, 2026-11-18; local only, not pushed)
+
+Pro skeleton: local Pro toggle (default Off), FilmCraft v0.20.1 web build
+vendored unmodified as the Edit tab, OTIO export from the Board, command
+registry v1. No payment, account, or cloud code. Full detail:
+[docs/CUTROOM_PRO_M0.md](docs/CUTROOM_PRO_M0.md).
+
+| ID | Status | Item |
+| --- | --- | --- |
+| P-001 | done | Pro toggle `cutroomProEnabled` in `preferences.json`, default Off; Settings card; Edit tab + OTIO hidden/disabled with a Pro note when Off |
+| P-002 | done | FilmCraft web build v0.20.1 vendored under `client/public/filmcraft-web/` (zip SHA-256 verified); Edit tab frames it with attribution; scoped CSP for `/filmcraft-web/*` |
+| P-003 | done | OTIO 1.0 export from Board (`POST /api/board/otio`, Board button); placeholder clips where a shot has no media, never an invented path |
+| P-004 | done | Command registry v1 (`shared/commands.ts`); Pro actions wired through it server- and client-side; append-only audit log (`GET /api/pro/audit`) |
+| P-005 | done | Tests: 314 pass, 0 fail (baseline 299; M0 adds 15); `npm run check` passes |
+| P-006 | todo | Live browser render check of the vendored FilmCraft build on a real machine (static files verified only in the VM) |
+| P-007 | todo | M1 assembler: drive FilmCraft from the Board (see Pro plan, M1) |

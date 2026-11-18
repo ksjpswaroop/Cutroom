@@ -39,6 +39,7 @@ import {
   readPreferences,
   writePreferences,
 } from "./preferences";
+import { proRegistry } from "./pro-commands";
 import {
   assemblePreviewRequestSchema,
   getAssemblePreviewStatus,
@@ -239,7 +240,20 @@ export async function registerRoutes(
     }
     try {
       const input = preferencesUpdateSchema.parse(req.body);
-      const preferences = await writePreferences(input);
+      // The Cutroom Pro toggle goes through the Pro command registry (M0), so
+      // the flip is validated and written to the audit log like every Pro
+      // action. Other preference keys keep the existing direct path.
+      const { cutroomProEnabled, ...rest } = input;
+      const definedRest = Object.fromEntries(
+        Object.entries(rest).filter(([, value]) => value !== undefined),
+      );
+      let preferences = await readPreferences();
+      if (cutroomProEnabled !== undefined) {
+        preferences = await proRegistry.dispatch("pro.set-enabled", { enabled: cutroomProEnabled });
+      }
+      if (Object.keys(definedRest).length > 0) {
+        preferences = await writePreferences(definedRest as typeof rest);
+      }
       const assemble = await getAssemblePreviewStatus();
       return res.json({ success: true, preferences, assemblePreview: assemble });
     } catch (error: any) {
@@ -247,6 +261,32 @@ export async function registerRoutes(
         error: error?.message || "Unable to save preferences.",
       });
     }
+  });
+
+  /**
+   * Cutroom Pro M0 — OTIO export from the production Board, and the Pro
+   * command audit log. Both are local-only. The export goes through the Pro
+   * command registry, which enforces the Pro gate and validates the Board.
+   */
+  app.post("/api/board/otio", async (req, res) => {
+    if (!localGuard(req, res, "OTIO export")) return;
+    try {
+      const result = await proRegistry.dispatch("pro.export-otio", req.body ?? {});
+      return res.json({ success: true, ...(result as Record<string, unknown>) });
+    } catch (error: any) {
+      const message = error?.message || "Unable to export OTIO.";
+      const status = /disabled/i.test(message) ? 403 : 400;
+      return res.status(status).json({
+        error: /disabled/i.test(message)
+          ? "Cutroom Pro is off. Enable it in Settings to export OTIO."
+          : message,
+      });
+    }
+  });
+
+  app.get("/api/pro/audit", async (req, res) => {
+    if (!localGuard(req, res, "Pro audit log")) return;
+    return res.json({ entries: proRegistry.auditLog() });
   });
 
   app.put("/api/settings/brand-kit", async (req, res) => {
