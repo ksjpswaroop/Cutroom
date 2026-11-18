@@ -19,7 +19,8 @@ import {
 } from "@shared/agents";
 import { addCostEntry, emptyLedger, type CostLedger } from "@shared/cost-ledger";
 import { getTextProvider, resolveAiProviderId } from "./ai/index";
-import type { AiTextProvider } from "./ai/types";
+import type { AiProviderUsage, AiTextProvider } from "./ai/types";
+import { parseAiProviderUsage } from "./ai/usage";
 import { extractJsonText } from "./ai/json-extract";
 import { readAgentMemory, type AgentMemory } from "./agent-memory";
 
@@ -68,6 +69,20 @@ export interface AgentRunContext {
   failOnce?: Partial<Record<AgentId, boolean>>;
   /** Test hook: count live provider calls without hitting the network. */
   textProviderOverride?: AiTextProvider;
+  /**
+   * Cutroom Pro M3 — every live provider call, in order, with its
+   * provider-reported usage and response id (or "not reported"). The
+   * live-acceptance harness reads this to build its per-check records;
+   * stub runs leave it empty.
+   */
+  providerCalls: Array<{
+    agent: Exclude<AgentId, "qa" | "assembler">;
+    provider: string;
+    model: string;
+    latencyMs: number;
+    usage?: AiProviderUsage;
+    responseId?: string;
+  }>;
 }
 
 const contexts = new Map<string, AgentRunContext>();
@@ -92,6 +107,7 @@ export function createAgentRunContext(args: {
     attempts: new Map(),
     failOnce: args.failOnce,
     textProviderOverride: args.textProviderOverride,
+    providerCalls: [],
   };
   contexts.set(args.runId, ctx);
   return ctx;
@@ -109,15 +125,25 @@ function stubCost(agent: AgentId, quotaUnits: number, note: string): CostEntry {
   return { agent, provider: "stub", model: "stub", tokens: null, quotaUnits, costUsd: 0, note };
 }
 
-function liveCost(agent: AgentId, provider: string, model: string): CostEntry {
+/**
+ * Cutroom Pro M3 — live cost entry. When the provider reports usage, its
+ * total tokens flow into the ledger; when it does not (or reports
+ * malformed usage, which is dropped here), tokens stay null — "not
+ * reported", never invented. Cost stays null: no text provider reports a
+ * dollar cost, and Cutroom does not price tokens.
+ */
+function liveCost(agent: AgentId, provider: string, model: string, usage?: AiProviderUsage, usageNote?: string): CostEntry {
+  const tokens = usage?.totalTokens ?? null;
   return {
     agent,
     provider,
     model,
-    tokens: null,
+    tokens,
     quotaUnits: 0,
     costUsd: null,
-    note: "Live provider call; the provider did not report tokens or cost, so both are recorded as not reported.",
+    note: usage
+      ? `Live provider call; provider reported ${usage.promptTokens} prompt + ${usage.completionTokens} completion = ${usage.totalTokens} tokens. Cost not reported by the provider.`
+      : (usageNote || "Live provider call; the provider did not report tokens or cost, so both are recorded as not reported."),
   };
 }
 
@@ -125,10 +151,35 @@ function handoffBase(ctx: AgentRunContext, agent: AgentId, snapshotId: string, s
   return { agent, runId: ctx.runId, snapshotId, summary };
 }
 
-async function liveComplete(ctx: AgentRunContext, prompt: string): Promise<{ text: string; provider: string; model: string }> {
+/**
+ * Cutroom Pro M3 — one live provider call, with usage passthrough.
+ * The provider result's usage is re-validated here: a provider that
+ * returns a malformed usage object (negative counts, strings, floats)
+ * has its usage dropped and the step records "not reported" — the step
+ * does not crash and no number is invented. The response id is carried
+ * through for the live-acceptance harness.
+ */
+async function liveComplete(ctx: AgentRunContext, agent: Exclude<AgentId, "qa" | "assembler">, prompt: string): Promise<{ text: string; provider: string; model: string; usage?: AiProviderUsage; usageNote?: string; responseId?: string }> {
   const provider = ctx.textProviderOverride ?? getTextProvider();
+  const startedMs = Date.now();
   const result = await provider.completeJson({ prompt });
-  return { text: result.text, provider: result.providerId, model: result.model };
+  const latencyMs = Date.now() - startedMs;
+  let usage: AiProviderUsage | undefined;
+  let usageNote: string | undefined;
+  if (result.usage !== undefined) {
+    const parsed = parseAiProviderUsage(result.usage);
+    if (parsed.ok) usage = parsed.usage;
+    else usageNote = `Live provider call; the provider returned malformed usage (${parsed.reason}) — recorded as not reported, no numbers invented.`;
+  }
+  ctx.providerCalls.push({
+    agent,
+    provider: result.providerId,
+    model: result.model,
+    latencyMs,
+    ...(usage ? { usage } : {}),
+    ...(result.responseId ? { responseId: result.responseId } : {}),
+  });
+  return { text: result.text, provider: result.providerId, model: result.model, ...(usage ? { usage } : {}), ...(usageNote ? { usageNote } : {}), ...(result.responseId ? { responseId: result.responseId } : {}) };
 }
 
 function parseLiveJson(text: string): unknown {
@@ -296,7 +347,7 @@ async function runAuditor(ctx: AgentRunContext, stepInput: Record<string, unknow
   let claims: AgentClaim[];
   let cost: CostEntry;
   if (ctx.mode === "live") {
-    const { text, provider, model } = await liveComplete(ctx, auditorPrompt(snapshotId, videos));
+    const { text, provider, model, usage, usageNote } = await liveComplete(ctx, "auditor", auditorPrompt(snapshotId, videos));
     const parsed = parseLiveJson(text) as { claims?: unknown };
     const validated: AgentClaim[] = [];
     const rejected: string[] = [];
@@ -311,7 +362,7 @@ async function runAuditor(ctx: AgentRunContext, stepInput: Record<string, unknow
       throw error;
     }
     claims = validated;
-    cost = liveCost("auditor", provider, model);
+    cost = liveCost("auditor", provider, model, usage, usageNote);
   } else {
     claims = suppliedClaims || stubClaims(snapshotId, videos.length > 0 ? videos : stubSnapshotVideos(ctx.input.topic, ctx.input.channelId).videos);
     // Validate even stub/supplied claims through the same gate.
@@ -349,7 +400,7 @@ async function runScriptwriter(ctx: AgentRunContext, stepInput: Record<string, u
   let script: ScriptOutput;
   let cost: CostEntry;
   if (ctx.mode === "live") {
-    const { text, provider, model } = await liveComplete(ctx, scriptwriterPrompt(topic, snapshotId, claims));
+    const { text, provider, model, usage, usageNote } = await liveComplete(ctx, "scriptwriter", scriptwriterPrompt(topic, snapshotId, claims));
     const parsed = parseLiveJson(text) as unknown;
     const { scriptOutputSchema } = await import("@shared/agents");
     script = scriptOutputSchema.parse(parsed);
@@ -362,7 +413,7 @@ async function runScriptwriter(ctx: AgentRunContext, stepInput: Record<string, u
         }
       }
     }
-    cost = liveCost("scriptwriter", provider, model);
+    cost = liveCost("scriptwriter", provider, model, usage, usageNote);
   } else {
     script = stubScript(topic, claims);
     cost = stubCost("scriptwriter", 0, "Deterministic stub script; no provider call.");
@@ -389,12 +440,12 @@ async function runPackaging(ctx: AgentRunContext, stepInput: Record<string, unkn
   let packaging: PackagingOutput;
   let cost: CostEntry;
   if (ctx.mode === "live") {
-    const { text, provider, model } = await liveComplete(ctx, packagingPrompt(script, brandKitName));
+    const { text, provider, model, usage, usageNote } = await liveComplete(ctx, "packaging", packagingPrompt(script, brandKitName));
     const parsed = parseLiveJson(text) as unknown;
     const { packagingOutputSchema, assertNoNumericScores } = await import("@shared/agents");
     packaging = packagingOutputSchema.parse(parsed);
     assertNoNumericScores(packaging);
-    cost = liveCost("packaging", provider, model);
+    cost = liveCost("packaging", provider, model, usage, usageNote);
   } else {
     packaging = stubPackaging(script, brandKitName);
     cost = stubCost("packaging", 0, "Deterministic stub packaging; no provider call.");

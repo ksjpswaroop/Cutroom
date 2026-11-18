@@ -74,6 +74,25 @@ export const agentRunReceiptSchema = z.object({
   handoffs: z.record(z.string(), z.custom<AgentHandoff>((value) => typeof value === "object" && value !== null)),
   qa: z.custom<QaReport>((value) => typeof value === "object" && value !== null).nullable(),
   ledger: z.custom<CostLedger>((value) => typeof value === "object" && value !== null),
+  /**
+   * Cutroom Pro M3 — every live provider call the run made, in order,
+   * with provider-reported usage and response id (or "not reported").
+   * Empty for stub runs. The live-acceptance harness reads this to build
+   * its per-check records; it is part of the receipt so a run's provider
+   * evidence survives the run context being deleted.
+   */
+  providerCalls: z.array(z.object({
+    agent: z.enum(["researcher", "auditor", "scriptwriter", "packaging"]),
+    provider: z.string().trim().min(1).max(64),
+    model: z.string().trim().min(1).max(128),
+    latencyMs: z.number().int().min(0),
+    usage: z.object({
+      promptTokens: z.number().int().min(0),
+      completionTokens: z.number().int().min(0),
+      totalTokens: z.number().int().min(0),
+    }).strict().optional(),
+    responseId: z.string().trim().min(1).max(128).optional(),
+  }).strict()).default([]),
   assemblerReceiptId: z.string().trim().min(1).max(128).nullable(),
   assemblerReceipt: z.custom<AssemblerReceiptSummary>((value) => typeof value === "object" && value !== null).nullable(),
   escalation: z.object({

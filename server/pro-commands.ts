@@ -13,6 +13,7 @@ import {
   type AgentClaim,
 } from "@shared/agents";
 import { qaInputSchema } from "@shared/qa";
+import { premiseRecordInputSchema } from "@shared/premise-accuracy";
 import { readPreferences, writePreferences, type AppPreferences } from "./preferences";
 
 /**
@@ -296,6 +297,33 @@ export function createProRegistry(): CommandRegistry {
     handler: async ({ runId }) => {
       const ctx = await agentContext(runId);
       return ctx.ledger;
+    },
+  });
+
+  /**
+   * Cutroom Pro M3 — premise-accuracy loop. Records are creator-supplied
+   * only (a premise the agent asserted, or one the creator writes by
+   * hand); actuals are creator-supplied numbers (CTR / retention /
+   * views, by hand). Nothing here fetches Studio data or scrapes
+   * YouTube — there is no network call on this path.
+   */
+  registry.register("premise.record", {
+    description: "Record a premise the agent asserted (claim ids + exact wording + expected metric/threshold). Actuals start empty — the premise is inconclusive until the creator supplies numbers.",
+    paramsSchema: premiseRecordInputSchema,
+    enabled: agentsEnabled,
+    handler: async (input) => {
+      const { recordPremise } = await import("./premise-accuracy");
+      return recordPremise(input);
+    },
+  });
+
+  registry.register("premise.compare", {
+    description: "Compare every premise in a project against creator-supplied actuals: confirmed / contradicted / inconclusive, with the numbers attached.",
+    paramsSchema: z.object({ projectId: z.string().trim().min(1).max(128).default("default") }).strict(),
+    enabled: agentsEnabled,
+    handler: async ({ projectId }) => {
+      const { compareProjectPremises } = await import("./premise-accuracy");
+      return compareProjectPremises(projectId);
     },
   });
 

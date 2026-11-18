@@ -1,5 +1,6 @@
 import { ProviderError } from "../provider-errors";
 import { extractJsonText } from "./json-extract";
+import { parseAiProviderUsage, parseProviderResponseId } from "./usage";
 import type {
   AiJsonCompletionRequest,
   AiJsonCompletionResult,
@@ -133,10 +134,16 @@ export function createAnthropicTextProvider(
         });
       }
 
+      // M3: carry the provider's own usage through when it reports it
+      // ({ input_tokens, output_tokens }); malformed usage is dropped,
+      // never repaired or invented.
+      const parsedUsage = parseAiProviderUsage(parsed?.usage);
       return {
         text: extractJsonText(text),
         providerId: "anthropic",
         model,
+        ...(parsedUsage.ok && parsedUsage.usage ? { usage: parsedUsage.usage } : {}),
+        ...(parseProviderResponseId(parsed?.id) ? { responseId: parseProviderResponseId(parsed.id) } : {}),
       };
     },
   };

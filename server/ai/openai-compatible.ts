@@ -1,5 +1,6 @@
 import { ProviderError } from "../provider-errors";
 import { extractJsonText } from "./json-extract";
+import { parseAiProviderUsage, parseProviderResponseId } from "./usage";
 import type {
   AiJsonCompletionRequest,
   AiJsonCompletionResult,
@@ -136,10 +137,16 @@ export function createOpenAiCompatibleTextProvider(
 
       // Gateways in front of open-weight models return fenced or prefixed JSON
       // often enough that recovery has to happen here, not at each call site.
+      // M3: carry the provider's own usage through when it reports it;
+      // malformed usage is dropped (recorded as "not reported" upstream),
+      // never repaired or invented.
+      const parsedUsage = parseAiProviderUsage(parsed?.usage);
       return {
         text: extractJsonText(text),
         providerId: config.id,
         model,
+        ...(parsedUsage.ok && parsedUsage.usage ? { usage: parsedUsage.usage } : {}),
+        ...(parseProviderResponseId(parsed?.id) ? { responseId: parseProviderResponseId(parsed.id) } : {}),
       };
     },
   };
