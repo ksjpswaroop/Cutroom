@@ -231,6 +231,13 @@ items are the env/owner-gated blockers below (`L-902`/`L-903`/`L-906`/`L-907`).
 
 ## Status — 2026-11-18 (build-time dependency advisories)
 
+> **RESOLVED (2026-11-18) by the Tailwind v4 migration.** `npm audit --omit=dev`
+> now reports **0 vulnerabilities** — the whole `picomatch`/glob chain left the
+> production tree once `tailwindcss` moved to v4 (new engine, no picomatch) and
+> `tailwindcss-animate` (which peer-pulled tailwind 3 into prod) was replaced by
+> `tw-animate-css`. `tsc` / `npm test` (364) / `npm run build` all green, and the
+> UI was browser-verified in light and dark. The record below is kept for history.
+
 `npm audit --omit=dev` reports **10 high** (plus 2 moderate incl. dev). All of them
 are **build-time toolchain** advisories, not request-path exposure:
 
