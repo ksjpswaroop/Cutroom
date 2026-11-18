@@ -1,4 +1,4 @@
-import { FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Eye, EyeOff, FolderOpen, KeyRound, Loader2, Save, ShieldCheck } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { createProClientRegistry } from "@/lib/pro-commands";
 import { checkForDesktopUpdate, installDesktopUpdate } from "@/lib/desktop-updater";
 import { OllamaPanel } from "@/components/ollama-panel";
 
@@ -45,6 +46,7 @@ interface ApiKeyStatus {
     vimaxCompanionEnabled?: boolean;
     hermesCompanionEnabled?: boolean;
     creatorExportEnabled?: boolean;
+    cutroomProEnabled?: boolean;
   };
   assemblePreview?: {
     assemblePreviewEnabled: boolean;
@@ -476,6 +478,36 @@ export default function SettingsPage() {
     await handleTogglePreference("assemblePreviewEnabled", enabled);
   };
 
+  // Cutroom Pro M0 — the toggle goes through the client Pro command
+  // registry (pro.set-enabled), which validates it and writes an audit entry.
+  const proRegistry = useMemo(() => createProClientRegistry(() => {}), []);
+  const handleTogglePro = async (enabled: boolean) => {
+    setIsSavingPreferences(true);
+    try {
+      const preferences = (await proRegistry.dispatch("pro.set-enabled", { enabled })) as {
+        cutroomProEnabled: boolean;
+      };
+      setStatus((current) => ({
+        ...current,
+        preferences: { ...current.preferences, cutroomProEnabled: preferences.cutroomProEnabled },
+      }));
+      toast({
+        title: enabled ? "Cutroom Pro enabled" : "Cutroom Pro disabled",
+        description: enabled
+          ? "The Edit tab (FilmCraft) and OTIO export on the Board are now available."
+          : "The Edit tab and OTIO export are hidden again. No data was deleted.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Could not update Cutroom Pro",
+        description: error?.message || "Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  };
+
   const handleSaveBrandKit = async () => {
     setIsSavingBrandKit(true);
     try {
@@ -825,6 +857,45 @@ export default function SettingsPage() {
               {status.preferences?.creatorExportEnabled ? "On" : "Off"}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Cutroom Pro</CardTitle>
+          <CardDescription>
+            Local tier, default Off. Enables the Edit tab (FilmCraft v0.20.1
+            video editor, vendored unmodified) and OTIO export from the Board.
+            No payment, no account, no cloud — just a local toggle.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/50 p-4">
+            <div>
+              <p className="text-sm font-medium">Enable Cutroom Pro</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {status.preferences?.cutroomProEnabled
+                  ? "On — Edit is in the sidebar and OTIO export is on the Board."
+                  : "Off — Edit and OTIO export stay hidden until you turn this on."}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant={status.preferences?.cutroomProEnabled ? "default" : "outline"}
+              disabled={isSavingPreferences || Boolean(loadError)}
+              onClick={() => void handleTogglePro(!status.preferences?.cutroomProEnabled)}
+              data-testid="button-toggle-cutroom-pro"
+            >
+              {isSavingPreferences ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {status.preferences?.cutroomProEnabled ? "On" : "Off"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            The editor is FilmCraft by the ArtCraft team (MIT/Apache-2.0),
+            vendored unmodified — see the attribution on the Edit tab. The
+            &ldquo;Cutroom Pro&rdquo; name is not yet trademark-cleared; treat
+            it as a tier name, not a new product, until clearance is done.
+          </p>
         </CardContent>
       </Card>
         </TabsContent>

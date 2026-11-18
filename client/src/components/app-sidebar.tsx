@@ -1,5 +1,5 @@
 import { useLocation, Link } from "wouter";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -38,8 +38,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, FileText, Settings, Rocket, Check, ArrowRight, Image, History, Loader2, MoreHorizontal, Pencil, Trash2, Package, Clapperboard, CalendarDays, LayoutGrid, Tv, Users, KanbanSquare, Wand2 } from "lucide-react";
+import { Search, FileText, Settings, Rocket, Check, ArrowRight, Image, History, Loader2, MoreHorizontal, Pencil, Trash2, Package, Clapperboard, CalendarDays, LayoutGrid, Tv, Users, KanbanSquare, Wand2, Film } from "lucide-react";
 import { useWorkflow } from "@/lib/workflow-context";
+import { createProClientRegistry, useProEnabled } from "@/lib/pro-commands";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -123,8 +124,7 @@ export function AppSidebar() {
     goToStep,
   } = useWorkflow();
   const queryClient = useQueryClient();
-  const [openingWorkflowId, setOpeningWorkflowId] = useState<string | null>(null);
-  const [renameTarget, setRenameTarget] = useState<{ id: string; title: string } | null>(null);
+  const [openingWorkflowId, setOpeningWorkflowId] = useState<string | null>(null);  const [renameTarget, setRenameTarget] = useState<{ id: string; title: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const [savingName, setSavingName] = useState(false);
@@ -133,6 +133,24 @@ export function AppSidebar() {
 
   const stepOrder = baseStepOrder;
   const menuItems = baseMenuItems;
+
+  const { enabled: proEnabled } = useProEnabled();
+  const proEnabledRef = useRef(false);
+  proEnabledRef.current = proEnabled;
+  const proRegistry = useMemo(
+    () => createProClientRegistry((path) => setLocation(path), () => proEnabledRef.current),
+    [setLocation],
+  );
+
+  const handleOpenEdit = async () => {
+    try {
+      await proRegistry.dispatch("pro.open-edit", {});
+    } catch {
+      // Pro is off (or status has not loaded yet): the Edit page itself
+      // explains that it is a Pro feature and how to turn it on.
+      setLocation("/edit");
+    }
+  };
 
   const handleStartWorkflow = () => {
     queryClient.removeQueries({ queryKey: ["/api/youtube/search"] });
@@ -329,6 +347,43 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
+              {/* Cutroom Pro M0 — Edit tab (FilmCraft). Shown always; when Pro
+                  is off it carries a Pro badge and opens the Edit page, which
+                  explains how to turn it on. Opening goes through the Pro
+                  command registry (pro.open-edit). */}
+              <SidebarMenuItem key="Edit">
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/edit"}
+                  className={location === "/edit" ? "bg-sidebar-accent" : ""}
+                >
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenEdit()}
+                    aria-current={location === "/edit" ? "page" : undefined}
+                    data-testid="link-edit"
+                  >
+                    <div className="flex flex-1 items-center gap-2.5">
+                      <span
+                        className={cn(
+                          "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                          "bg-lime-500/15 text-lime-600 dark:bg-lime-400/20 dark:text-lime-400",
+                          location === "/edit" && "ring-1 ring-current/25",
+                        )}
+                        aria-hidden="true"
+                      >
+                        <Film className="size-4" />
+                      </span>
+                      <span>Edit</span>
+                      {!proEnabled && (
+                        <span className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Pro
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Clapperboard, LayoutGrid, Loader2 } from "lucide-react";
+import { Clapperboard, FileDown, LayoutGrid, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useWorkflow } from "@/lib/workflow-context";
+import { createProClientRegistry, useProEnabled, type OtioExportResult } from "@/lib/pro-commands";
 import {
   checkProductionBoard,
   groupShotsIntoClipBriefs,
@@ -19,6 +20,7 @@ export default function BoardPage() {
   const { toast } = useToast();
   const { state, setBoardData, goToStep } = useWorkflow();
   const [busy, setBusy] = useState(false);
+  const [otioBusy, setOtioBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [board, setBoard] = useState<ProductionBoardOutput | null>(
     (state.cachedBoard?.board as ProductionBoardOutput | undefined) || null,
@@ -71,6 +73,33 @@ export default function BoardPage() {
   }, [board, snapshotId, allowedClaimIds, throughlineSections, state.cachedScript?.evidenceContext?.evidenceClaims, state.idea?.selectedIdea?.evidenceClaims]);
 
   const clipBriefs = useMemo(() => (board ? groupShotsIntoClipBriefs(board) : []), [board]);
+
+  // Cutroom Pro M0 — OTIO export goes through the client Pro command
+  // registry (pro.export-otio); the server re-checks the Pro gate.
+  const { enabled: proEnabled } = useProEnabled();
+  const proRegistry = useMemo(
+    () => createProClientRegistry((path) => setLocation(path)),
+    [setLocation],
+  );
+
+  const handleExportOtio = async () => {
+    if (!board) return;
+    setOtioBusy(true);
+    setError(null);
+    try {
+      const result = (await proRegistry.dispatch("pro.export-otio", { board })) as OtioExportResult;
+      toast({
+        title: "OTIO exported",
+        description: result.placeholders.length > 0
+          ? `${board.shots.length} clips at ${result.fps} fps · ${result.placeholders.length} placeholder clip(s) with no media yet — no file path was invented.`
+          : `${board.shots.length} clips at ${result.fps} fps · every shot has media.`,
+      });
+    } catch (err: any) {
+      setError(err?.message || "Unable to export OTIO.");
+    } finally {
+      setOtioBusy(false);
+    }
+  };
 
   const handleGenerate = async () => {
     if (!state.idea?.selectedIdea || !state.cachedScript?.script || !state.cachedScript.evidenceContext) {
@@ -157,7 +186,22 @@ export default function BoardPage() {
           <Clapperboard className="mr-2 h-4 w-4" />
           Open Render
         </Button>
+        <Button
+          variant="outline"
+          onClick={() => void handleExportOtio()}
+          disabled={otioBusy || !board || !proEnabled}
+          data-testid="button-export-otio"
+          title={proEnabled ? "Download this Board as an OpenTimelineIO timeline" : "Cutroom Pro feature — enable it in Settings"}
+        >
+          {otioBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+          Export OTIO{!proEnabled ? " (Pro)" : ""}
+        </Button>
       </div>
+      {!proEnabled && board && (
+        <p className="text-xs text-muted-foreground">
+          OTIO export is a Cutroom Pro feature — enable Cutroom Pro in Settings to download this Board as a timeline for FilmCraft, Premiere, or DaVinci.
+        </p>
+      )}
 
       {board && (
         <>

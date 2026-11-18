@@ -16,6 +16,8 @@ export const preferencesSchema = z.object({
   hermesCompanionEnabled: z.boolean().default(false),
   /** Optional creator artifacts in the export pack (L-808). Default Off; inferred-only. */
   creatorExportEnabled: z.boolean().default(false),
+  /** Cutroom Pro tier (M0). Default Off. Enables the Edit tab (FilmCraft) and OTIO export. No payment, account, or cloud. */
+  cutroomProEnabled: z.boolean().default(false),
 }).strict();
 
 export type AppPreferences = z.infer<typeof preferencesSchema>;
@@ -26,6 +28,7 @@ export const preferencesUpdateSchema = z.object({
   vimaxCompanionEnabled: z.boolean().optional(),
   hermesCompanionEnabled: z.boolean().optional(),
   creatorExportEnabled: z.boolean().optional(),
+  cutroomProEnabled: z.boolean().optional(),
 }).strict();
 
 const DEFAULTS: AppPreferences = {
@@ -34,6 +37,7 @@ const DEFAULTS: AppPreferences = {
   vimaxCompanionEnabled: false,
   hermesCompanionEnabled: false,
   creatorExportEnabled: false,
+  cutroomProEnabled: false,
 };
 
 function preferencesPath(root = getEnvFilePaths().root): string {

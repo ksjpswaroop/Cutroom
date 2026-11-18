@@ -36,10 +36,23 @@ app.use((_req, res, next) => {
   res.setHeader("Permissions-Policy", "camera=(), geolocation=(), microphone=()");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   if (process.env.NODE_ENV === "production") {
-    res.setHeader(
-      "Content-Security-Policy",
-      "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' https://fonts.gstatic.com; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://i.ytimg.com https://yt3.ggpht.com https://*.googleusercontent.com; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    );
+    if (_req.path.startsWith("/filmcraft-web/")) {
+      // Scoped CSP for the vendored FilmCraft web build only (Cutroom Pro M0).
+      // FilmCraft's index.html uses inline <script>/<style> and the WASM app
+      // needs wasm-unsafe-eval, so the app-wide CSP would block it. This
+      // policy applies to the vendored third-party files only, and
+      // frame-ancestors 'self' is what lets Cutroom's own Edit tab frame it.
+      // Nothing else in Cutroom uses this policy.
+      res.setHeader(
+        "Content-Security-Policy",
+        "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'self'; img-src 'self' data: blob:; object-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'",
+      );
+    } else {
+      res.setHeader(
+        "Content-Security-Policy",
+        "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' https://fonts.gstatic.com; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://i.ytimg.com https://yt3.ggpht.com https://*.googleusercontent.com; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      );
+    }
   }
   next();
 });
