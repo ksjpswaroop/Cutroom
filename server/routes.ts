@@ -476,6 +476,49 @@ export async function registerRoutes(
     }
   });
 
+  // Cutroom Pro M3 — premise-accuracy loop. Records and actuals are
+  // creator-supplied only; nothing here fetches Studio data or scrapes
+  // YouTube. All three routes are Pro-gated (403 when off).
+  app.post("/api/agents/premise", async (req, res) => {
+    if (!(await agentsGuard(req, res))) return;
+    try {
+      const { recordPremise } = await import("./premise-accuracy");
+      const record = await recordPremise({ ...req.body, projectId: projectIdParam(req) });
+      return res.json({ success: true, record });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Unable to record the premise." });
+    }
+  });
+
+  app.get("/api/agents/premise", async (req, res) => {
+    if (!(await agentsGuard(req, res))) return;
+    try {
+      const { compareProjectPremises } = await import("./premise-accuracy");
+      return res.json(await compareProjectPremises(projectIdParam(req)));
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Unable to load premises." });
+    }
+  });
+
+  app.post("/api/agents/premise/:id/actuals", async (req, res) => {
+    if (!(await agentsGuard(req, res))) return;
+    const recordId = req.params.id;
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(recordId)) {
+      return res.status(400).json({ error: "Invalid premise id." });
+    }
+    try {
+      const { premiseActualsInputSchema } = await import("@shared/premise-accuracy");
+      const actuals = premiseActualsInputSchema.parse(req.body ?? {});
+      const { supplyPremiseActuals, compareProjectPremises } = await import("./premise-accuracy");
+      const record = await supplyPremiseActuals(projectIdParam(req), recordId, actuals);
+      if (!record) return res.status(404).json({ error: "Premise not found." });
+      const { comparisons } = await compareProjectPremises(projectIdParam(req));
+      return res.json({ success: true, record, comparison: comparisons.find((c) => c.recordId === recordId) ?? null });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Unable to save the actual numbers." });
+    }
+  });
+
   app.put("/api/settings/brand-kit", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     if (!isLocalSettingsRequest(req)) {

@@ -347,7 +347,7 @@ acceptance and the history purge are env/owner-gated and cannot be simulated.
 | ID | Status | Item |
 | --- | --- | --- |
 | L-903 | blocked | Windows signing: Authenticode cert + Windows host/runner wired into `desktop-packages.yml`; stays open until a real signature exists (needs cert) |
-| L-906 | blocked | Live-provider acceptance pass on a clean Mac with a throwaway billable key (Gemini, YouTube 10k ceiling, keychain, OAuth Studio, **MiniMax Hailuo H3 quote-then-charge**). Does not close until a written MiniMax result exists (needs Mac + key) |
+| L-906 | blocked | Live-provider acceptance pass on a clean Mac with a throwaway billable key (Gemini, YouTube 10k ceiling, keychain, OAuth Studio, **MiniMax Hailuo H3 quote-then-charge**). Harness built in M3 (Phase 15); live run still needs Mac + key. Does not close until a written MiniMax result exists (needs Mac + key) |
 | L-907 | blocked | Financial history purge: owner runs `filter-repo` + GitHub support purge from [docs/FINANCIAL_PURGE_REQUEST.md](docs/FINANCIAL_PURGE_REQUEST.md) + rotation (**owner only**) |
 
 ### Non-goals for v2.1
@@ -393,7 +393,7 @@ fake-publish and the retired store/credits stay out regardless of the model.
 | G-201 | todo | Headless E2E acceptance harness: deterministic Research→…→Package→Export, asserting a valid pack and preserved snapshot/evidence labels; no live keys |
 | G-202 | todo | Browser-smoke coverage over Settings toggles + export (closes the PR risk-taxonomy "UI without browser coverage" signal); tooling (Playwright/preview) is a dev call |
 | G-203 | todo | Sample-driven regression: wire `G-101` goldens into `npm test` so contract drift fails a golden compare |
-| G-204 | blocked | Live-provider acceptance pass — **same item as `L-906`** (clean Mac + throwaway billable key; incl. MiniMax quote-then-charge). Recorded, never simulated |
+| G-204 | blocked | Live-provider acceptance pass — **same item as `L-906`** (clean Mac + throwaway billable key; incl. MiniMax quote-then-charge). Harness built in M3 (Phase 15); live run still needs Mac + key. Recorded, never simulated |
 | G-205 | todo | Reference-set / analyzer fixtures (also answers the ECC "reference set readiness" audit); low priority |
 
 ### Track COMM — commercialization (gated on `G-001` = B or C; **test-mode only**)
@@ -496,7 +496,7 @@ second provider's API is chosen). Everything else waits on the gates.
 | PS-301 | todo | Real cinematic pipeline: stills → clips (video provider) → FFmpeg concat → shared consented voice; quote-before-run; shot cap per `PS-002`; `usesVeo` true only when configured + enabled. TDD first |
 | PS-302 | todo | Voice + consent: shared profile; clone requires `CUTROOM_VOICE_CONSENT`; never clone snapshot voices (existing guard kept) |
 | PS-303 | todo | Export `render.mp4` into the pack; `evidenceClass: inferred` |
-| PS-304 | blocked | Live cinematic acceptance (**= `L-906`**): MiniMax/Veo-class quote-then-charge on a billable key (clean Mac + key). Recorded, never simulated |
+| PS-304 | blocked | Live cinematic acceptance (**= `L-906`**): MiniMax/Veo-class quote-then-charge on a billable key (clean Mac + key). Harness built in M3 (Phase 15); live run still needs Mac + key. Recorded, never simulated |
 
 ### Track PUBLISH — publishing (**gated on `PS-001`**; user-consented only)
 
@@ -582,3 +582,23 @@ No payment, account, or cloud code. Full detail:
 | P-107 | done | Agent team (`shared/agents.ts`, `server/agents.ts`, `server/orchestrator.ts`): Orchestrator with plan-first approval, single no-spend retry, escalation to needs-human on paid-call failure / QA Fail / spend-cap / ambiguous evidence; four agents as registry commands (stub fixtures deterministic, live validates against the same schemas); QA gate (5 checks, Fail blocks assembler with 409); Cost Ledger (every step recorded, tokens never invented, spend cap default $0 in Settings); agent memory JSON with Edit/Delete; Agents view (`/agents`) + routes (`POST /api/agents/plan|run`, `GET /api/agents/runs/:runId|ledger`, `GET/PUT/DELETE /api/agents/memory`), all Pro-gated |
 | P-108 | done | Tests **364 pass / 0 fail** (343 baseline + 21 M2); `npm run check` 0, `npm run build` 0; E2E script `script/run-agents-e2e.ts`: stub run ok (6 receipts, QA pass, ledger $0 / quota 100 / tokens not reported, assembler partial dry-run) + QA-fail run blocks the assembler (needs-human, no assembler receipt) |
 | P-109 | todo | M2 follow-ups: live-provider run on a Mac (never run against a real provider yet; live costs stay "not reported" until the provider interface exposes usage); Agents view live-browser render check; QA warns (not fails) when no throughline data exists |
+
+## Phase 15 — Cutroom Pro M3: Live-key acceptance pass + pilot prep (branch `cutroom-pro-m3`, 2026-11-18; not pushed, no PR)
+
+The live pass itself (L-906) can only run on a Mac with a throwaway
+billable key — the VM has no keys and makes no live calls. M3 builds
+everything that makes that pass recordable, repeatable, and honest:
+the harness, the usage passthrough, the premise-accuracy loop, and the
+pilot plan. Stub outputs are labelled "stub — not a live result"
+everywhere; nothing simulates a live result. Full detail:
+[docs/CUTROOM_PRO_M3.md](docs/CUTROOM_PRO_M3.md); pilot plan:
+[docs/PILOT_M3.md](docs/PILOT_M3.md).
+
+| ID | Status | Item |
+| --- | --- | --- |
+| P-109 | partial | M2 follow-ups, part-closed by M3: provider interface now exposes usage (`AiJsonCompletionResult.usage`, validated by `parseAiProviderUsage`; live costs still "not reported" — no text provider reports a dollar cost). Still open: live-provider run on a Mac (harness built, run still needs Mac + key — see L-906); Agents view live-browser render check; QA warns (not fails) when no throughline data exists |
+| P-110 | done | Live-acceptance harness (`shared/live-acceptance.ts`, `server/live-acceptance.ts`, `script/run-live-acceptance.ts`): 5 checks (Researcher, agent chain, Orchestrator plan + dry-run assembler, QA gate, ledger-vs-usage) with response id / latency / reported usage per check; persisted under `live-acceptance/<runId>.json` with `live: true/false` + key fingerprint (last 4 only); `--stub` mode labelled everywhere; no-key live attempt exits 2 and runs nothing |
+| P-111 | done | Provider usage passthrough (all four text adapters + `server/agents.ts` live cost entries + `AgentRunReceipt.providerCalls`): usage flows into the ledger when reported, stays "not reported" when absent, malformed usage is dropped safely (no crash, no invented numbers) |
+| P-112 | done | Premise-accuracy loop (`shared/premise-accuracy.ts`, `server/premise-accuracy.ts`, `premise.record` / `premise.compare` commands, `POST/GET /api/agents/premise`, `POST /api/agents/premise/:id/actuals`, Agents view card): creator-supplied actuals only (no Studio fetch, no scraping, no auto-upload); no data yet = inconclusive, never confirmed |
+| P-113 | done | Pilot prep (`docs/PILOT_M3.md`): 10-creator plan — who qualifies, gets/owes, consent wording, one-video runbook, L-906 Mac checklist (throwaway key, Gemini + YouTube 10k ceiling, keychain, Studio OAuth read-only, MiniMax Hailuo H3 quote-then-charge — record the quote, approve, then charge; never simulate). No creator contacted; recruiting needs owner approval |
+| P-114 | done | Tests **383 pass / 0 fail** (364 baseline + 19 M3); `npm run check` 0, `npm run build` 0 (2 pre-existing `import.meta` warnings); stub harness E2E exit 0 (5/5 checks pass, live=false, ledger $0 / quota 100 / tokens not reported); no-key gate exit 2 with nothing run |

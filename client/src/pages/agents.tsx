@@ -59,6 +59,27 @@ export default function AgentsPage() {
   const [memory, setMemory] = useState<AgentMemory | null>(null);
   const [memoryDraft, setMemoryDraft] = useState({ channelFormatDna: "", packagingOutcomes: "", premiseNotes: "" });
   const [memoryBusy, setMemoryBusy] = useState(false);
+  // Cutroom Pro M3 — premise-accuracy loop: premises the agent asserted,
+  // compared against numbers the creator supplies by hand. Nothing here
+  // fetches Studio data; a premise with no numbers yet is inconclusive.
+  type PremiseRow = {
+    id: string;
+    videoTitle: string;
+    wording: string;
+    claimIds: string[];
+    expectation: { metric: string; direction: string; threshold: number; margin: number };
+    actuals: { ctrPct: number | null; retentionPct: number | null; views: number | null };
+  };
+  type PremiseComparisonRow = { recordId: string; verdict: string; actual: number | null; reason: string };
+  type PremiseState = {
+    records: PremiseRow[];
+    comparisons: PremiseComparisonRow[];
+    status: { total: number; confirmed: number; contradicted: number; inconclusive: number };
+  };
+  const [premises, setPremises] = useState<PremiseState | null>(null);
+  const [premiseDraft, setPremiseDraft] = useState({ videoTitle: "", wording: "", claimIds: "", metric: "ctr", direction: "above", threshold: "5", margin: "0" });
+  const [actualsDraft, setActualsDraft] = useState<Record<string, { ctr: string; retention: string; views: string }>>({});
+  const [premiseBusy, setPremiseBusy] = useState(false);
 
   const board = state.cachedBoard?.board ?? null;
   const projectId = "default";
@@ -66,6 +87,9 @@ export default function AgentsPage() {
   useEffect(() => {
     if (!enabled) return;
     apiRequest("GET", "/api/agents/ledger").then((data) => setLedger(data as LedgerResponse)).catch(() => undefined);
+    apiRequest("GET", `/api/agents/premise?projectId=${projectId}`)
+      .then((data) => setPremises(data as PremiseState))
+      .catch(() => undefined);
     apiRequest("GET", `/api/agents/memory?projectId=${projectId}`)
       .then((data) => {
         const m = (data as { memory: AgentMemory }).memory;
@@ -191,6 +215,74 @@ export default function AgentsPage() {
       setError(err?.message || "Unable to delete agent memory.");
     } finally {
       setMemoryBusy(false);
+    }
+  };
+
+  const refreshPremises = async () => {
+    try {
+      const data = (await apiRequest("GET", `/api/agents/premise?projectId=${projectId}`)) as PremiseState;
+      setPremises(data);
+    } catch {
+      // Leave the last good state in place; the error surfaces on save.
+    }
+  };
+
+  const handleRecordPremise = async () => {
+    if (!premiseDraft.videoTitle.trim() || !premiseDraft.wording.trim()) {
+      setError("A premise needs a video title and the exact wording the agent asserted.");
+      return;
+    }
+    const threshold = Number(premiseDraft.threshold);
+    const margin = Number(premiseDraft.margin);
+    if (!Number.isFinite(threshold) || threshold < 0 || !Number.isFinite(margin) || margin < 0) {
+      setError("Threshold and margin must be numbers of 0 or more.");
+      return;
+    }
+    setPremiseBusy(true);
+    setError(null);
+    try {
+      await apiRequest("POST", `/api/agents/premise?projectId=${projectId}`, {
+        videoTitle: premiseDraft.videoTitle.trim(),
+        wording: premiseDraft.wording.trim(),
+        claimIds: premiseDraft.claimIds.split(",").map((s) => s.trim()).filter(Boolean),
+        agentRunId: receipt?.runId ?? null,
+        publishedAt: null,
+        expectation: { metric: premiseDraft.metric, direction: premiseDraft.direction, threshold, margin },
+      });
+      setPremiseDraft({ videoTitle: "", wording: "", claimIds: "", metric: "ctr", direction: "above", threshold: "5", margin: "0" });
+      await refreshPremises();
+      toast({ title: "Premise recorded", description: "It is inconclusive until you supply the real numbers by hand." });
+    } catch (err: any) {
+      setError(err?.message || "Unable to record the premise.");
+    } finally {
+      setPremiseBusy(false);
+    }
+  };
+
+  const handleSaveActuals = async (recordId: string) => {
+    const draft = actualsDraft[recordId] ?? { ctr: "", retention: "", views: "" };
+    const body: Record<string, number | null> = {};
+    if (draft.ctr.trim() !== "") body.ctrPct = Number(draft.ctr);
+    if (draft.retention.trim() !== "") body.retentionPct = Number(draft.retention);
+    if (draft.views.trim() !== "") body.views = Number(draft.views);
+    if (Object.keys(body).length === 0) {
+      setError("Enter at least one number (CTR %, retention %, or views) from Studio, by hand.");
+      return;
+    }
+    if (Object.values(body).some((v) => v === null || !Number.isFinite(v) || (v as number) < 0)) {
+      setError("Actual numbers must be 0 or more.");
+      return;
+    }
+    setPremiseBusy(true);
+    setError(null);
+    try {
+      await apiRequest("POST", `/api/agents/premise/${recordId}/actuals?projectId=${projectId}`, body);
+      await refreshPremises();
+      toast({ title: "Actual numbers saved", description: "The premise verdict is updated from the numbers you supplied." });
+    } catch (err: any) {
+      setError(err?.message || "Unable to save the actual numbers.");
+    } finally {
+      setPremiseBusy(false);
     }
   };
 
@@ -378,6 +470,119 @@ export default function AgentsPage() {
           ) : (
             <p className="text-sm text-muted-foreground">No agent runs yet — the ledger is empty.</p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Premise accuracy loop</CardTitle>
+          <CardDescription>
+            After a video is published, record what the agent asserted and the
+            real numbers from Studio — by hand. Nothing here fetches Studio
+            data. {premises ? `${premises.status.total} premise(s): ${premises.status.confirmed} confirmed · ${premises.status.contradicted} contradicted · ${premises.status.inconclusive} inconclusive (no numbers yet).` : "No premises recorded yet."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="agents-premise-title">Video title</Label>
+              <Input id="agents-premise-title" value={premiseDraft.videoTitle} onChange={(e) => setPremiseDraft((d) => ({ ...d, videoTitle: e.target.value }))} placeholder="How to sharpen a kitchen knife" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="agents-premise-claims">Claim ids (comma separated, optional)</Label>
+              <Input id="agents-premise-claims" value={premiseDraft.claimIds} onChange={(e) => setPremiseDraft((d) => ({ ...d, claimIds: e.target.value }))} placeholder="stub-claim-1, stub-claim-4" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="agents-premise-wording">Exact wording the agent asserted</Label>
+              <Textarea id="agents-premise-wording" rows={2} value={premiseDraft.wording} onChange={(e) => setPremiseDraft((d) => ({ ...d, wording: e.target.value }))} placeholder="A timed walkthrough holds retention past the opening." />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="agents-premise-metric">Expected metric</Label>
+              <select
+                id="agents-premise-metric"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={premiseDraft.metric}
+                onChange={(e) => setPremiseDraft((d) => ({ ...d, metric: e.target.value }))}
+              >
+                <option value="ctr">CTR (%)</option>
+                <option value="retention">Retention (%)</option>
+                <option value="views">Views</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="agents-premise-direction">Direction</Label>
+              <select
+                id="agents-premise-direction"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={premiseDraft.direction}
+                onChange={(e) => setPremiseDraft((d) => ({ ...d, direction: e.target.value }))}
+              >
+                <option value="above">Above threshold</option>
+                <option value="below">Below threshold</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="agents-premise-threshold">Threshold</Label>
+              <Input id="agents-premise-threshold" value={premiseDraft.threshold} onChange={(e) => setPremiseDraft((d) => ({ ...d, threshold: e.target.value }))} placeholder="5" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="agents-premise-margin">Margin (±, too close to call)</Label>
+              <Input id="agents-premise-margin" value={premiseDraft.margin} onChange={(e) => setPremiseDraft((d) => ({ ...d, margin: e.target.value }))} placeholder="0" />
+            </div>
+          </div>
+          <Button type="button" onClick={() => void handleRecordPremise()} disabled={premiseBusy} data-testid="button-agents-premise-record">
+            {premiseBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Record premise
+          </Button>
+
+          {premises && premises.records.length > 0 && (
+            <ul className="space-y-3">
+              {premises.records.map((record) => {
+                const comparison = premises.comparisons.find((c) => c.recordId === record.id);
+                const draft = actualsDraft[record.id] ?? { ctr: "", retention: "", views: "" };
+                return (
+                  <li key={record.id} className="rounded-lg border border-border p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium">{record.videoTitle}</p>
+                      <Badge variant={comparison?.verdict === "confirmed" ? "default" : comparison?.verdict === "contradicted" ? "destructive" : "secondary"}>
+                        {comparison?.verdict ?? "inconclusive"}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{record.wording}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Expected {record.expectation.metric} {record.expectation.direction} {record.expectation.threshold}
+                      {record.actuals.ctrPct !== null ? ` · CTR ${record.actuals.ctrPct}%` : ""}
+                      {record.actuals.retentionPct !== null ? ` · retention ${record.actuals.retentionPct}%` : ""}
+                      {record.actuals.views !== null ? ` · views ${record.actuals.views}` : ""}
+                    </p>
+                    {comparison && <p className="mt-1 text-xs text-muted-foreground">{comparison.reason}</p>}
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <Label htmlFor={`premise-ctr-${record.id}`}>CTR %</Label>
+                        <Input id={`premise-ctr-${record.id}`} value={draft.ctr} onChange={(e) => setActualsDraft((d) => ({ ...d, [record.id]: { ...(d[record.id] ?? { ctr: "", retention: "", views: "" }), ctr: e.target.value } }))} placeholder="6.1" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`premise-ret-${record.id}`}>Retention %</Label>
+                        <Input id={`premise-ret-${record.id}`} value={draft.retention} onChange={(e) => setActualsDraft((d) => ({ ...d, [record.id]: { ...(d[record.id] ?? { ctr: "", retention: "", views: "" }), retention: e.target.value } }))} placeholder="42" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`premise-views-${record.id}`}>Views</Label>
+                        <Input id={`premise-views-${record.id}`} value={draft.views} onChange={(e) => setActualsDraft((d) => ({ ...d, [record.id]: { ...(d[record.id] ?? { ctr: "", retention: "", views: "" }), views: e.target.value } }))} placeholder="1200" />
+                      </div>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => void handleSaveActuals(record.id)} disabled={premiseBusy}>
+                      Save actual numbers
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Numbers come from the creator, by hand, from Studio — Cutroom never
+            fetches them. A premise with no numbers is inconclusive, never
+            confirmed.
+          </p>
         </CardContent>
       </Card>
 

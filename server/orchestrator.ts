@@ -287,6 +287,7 @@ export async function runAgents(
     handoffs: Object.fromEntries(ctx.handoffs.entries()),
     qa,
     ledger: ctx.ledger,
+    providerCalls: ctx.providerCalls,
     assemblerReceiptId: assemblerReceipt?.runId || null,
     assemblerReceipt,
     escalation,

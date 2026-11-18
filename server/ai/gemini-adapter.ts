@@ -4,6 +4,7 @@ import {
   getGeminiClient,
   getGeminiTextModel,
 } from "../gemini-runtime";
+import { parseAiProviderUsage, parseProviderResponseId } from "./usage";
 import type {
   AiJsonCompletionRequest,
   AiJsonCompletionResult,
@@ -37,10 +38,20 @@ export function createGeminiTextProvider(): AiTextProvider {
         config: { responseMimeType: "application/json" },
       });
 
+      // M3: carry the provider's own usage through when it reports it
+      // (usageMetadata: promptTokenCount / candidatesTokenCount /
+      // totalTokenCount); malformed usage is dropped, never repaired.
+      // Gemini does not surface a response id on this path, so none is
+      // recorded — "not reported", not invented.
+      const parsedUsage = parseAiProviderUsage(response.usageMetadata);
       return {
         text: response.text || "",
         providerId: "gemini",
         model,
+        ...(parsedUsage.ok && parsedUsage.usage ? { usage: parsedUsage.usage } : {}),
+        ...(parseProviderResponseId((response as unknown as Record<string, unknown>).responseId)
+          ? { responseId: parseProviderResponseId((response as unknown as Record<string, unknown>).responseId) }
+          : {}),
       };
     },
   };

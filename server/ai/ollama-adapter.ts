@@ -10,9 +10,11 @@ import {
   suggestInstalledModel,
 } from "../ollama";
 import { extractJsonText, isRecoverableJson } from "./json-extract";
+import { parseAiProviderUsage } from "./usage";
 import type {
   AiJsonCompletionRequest,
   AiJsonCompletionResult,
+  AiProviderUsage,
   AiTextProvider,
 } from "./types";
 
@@ -36,7 +38,7 @@ interface ChatAttemptOptions {
   temperature: number;
 }
 
-async function chatOnce(options: ChatAttemptOptions): Promise<string> {
+async function chatOnce(options: ChatAttemptOptions): Promise<{ text: string; usage?: AiProviderUsage }> {
   const { prompt, model, baseUrl, systemPrompt, temperature } = options;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const apiKey = process.env.OLLAMA_API_KEY?.trim();
@@ -102,6 +104,10 @@ async function chatOnce(options: ChatAttemptOptions): Promise<string> {
 
   const message = parsed?.choices?.[0]?.message;
   const text = message?.content || parsed?.choices?.[0]?.text || "";
+  // M3: carry the provider's own usage through when it reports it;
+  // malformed usage is dropped, never repaired or invented.
+  const parsedUsage = parseAiProviderUsage(parsed?.usage);
+  const usage = parsedUsage.ok ? parsedUsage.usage : undefined;
   if (typeof text !== "string" || !text.trim()) {
     // Reasoning models can spend the whole budget thinking and return nothing.
     const reasoned = typeof message?.reasoning === "string" && message.reasoning.trim();
@@ -116,7 +122,7 @@ async function chatOnce(options: ChatAttemptOptions): Promise<string> {
     });
   }
 
-  return text;
+  return { text, ...(usage ? { usage } : {}) };
 }
 
 /**
@@ -144,8 +150,8 @@ export function createOllamaTextProvider(): AiTextProvider {
         temperature: 0.4,
       });
 
-      if (isRecoverableJson(first)) {
-        return { text: extractJsonText(first), providerId: "ollama", model };
+      if (isRecoverableJson(first.text)) {
+        return { text: extractJsonText(first.text), providerId: "ollama", model, ...(first.usage ? { usage: first.usage } : {}) };
       }
 
       // One deterministic retry. Local models frequently comply on the second
@@ -158,8 +164,8 @@ export function createOllamaTextProvider(): AiTextProvider {
         temperature: 0,
       });
 
-      if (isRecoverableJson(second)) {
-        return { text: extractJsonText(second), providerId: "ollama", model };
+      if (isRecoverableJson(second.text)) {
+        return { text: extractJsonText(second.text), providerId: "ollama", model, ...(second.usage ? { usage: second.usage } : {}) };
       }
 
       throw new ProviderError({

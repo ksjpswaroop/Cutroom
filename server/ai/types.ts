@@ -42,6 +42,35 @@ export interface AiJsonCompletionResult {
   text: string;
   providerId: AiProviderId;
   model: string;
+  /**
+   * Cutroom Pro M3 — provider-reported usage, carried through to the Cost
+   * Ledger and agent receipts when (and only when) the provider reports
+   * it. Absent (undefined) means "not reported by provider" — never
+   * invented. Adapters must validate raw usage with
+   * parseAiProviderUsage (server/ai/usage.ts) and drop malformed usage
+   * rather than passing it on.
+   */
+  usage?: AiProviderUsage;
+  /**
+   * Provider's own response/request id when one is returned (OpenAI and
+   * Anthropic return one; Gemini does not surface one here). Recorded by
+   * the live-acceptance harness; absent means "not reported".
+   */
+  responseId?: string;
+}
+
+/**
+ * Cutroom Pro M3 — token usage as a provider reports it. All counts are
+ * non-negative integers; `totalTokens` is the provider's own total when
+ * reported, otherwise prompt + completion. `costUsd` is never here:
+ * Cutroom does not price tokens — a cost is recorded only when a provider
+ * reports one, and no text provider does today, so ledger cost stays
+ * "not reported" for live steps.
+ */
+export interface AiProviderUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
 }
 
 export interface AiTextProvider {
